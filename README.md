@@ -1,35 +1,64 @@
 # Scrubssitel
 
-A playable, original hospital management comedy game. Build a clinic, hire an eccentric team, cure absurd illnesses, and try to keep the coffee budget under control.
+A cute, original hospital and specialty-practice management comedy game, with OpenArt characters animated directly on the playable floor.
 
 **Play:** https://marcelweissgerberit.github.io/scrubssitel/
 
-## Included
+## Choose your practice
 
-- Three campaign episodes with treatment and reputation objectives and sequential unlocks.
-- Free play with every department available and $35,000 starting funds.
-- Interactive isometric hospital: drag to build rooms, automatic accessible doors, animated patients, diagnosis and treatment queues, and automatic staff assignment.
-- Seven departments: diagnosis, pharmacy, daydream clinic, odd surgery, staff lounge, restrooms, and research lab.
-- Five original staff archetypes, hiring, wages, breaks, fatigue, maintenance, room upgrades, and demolition refunds.
-- Six imaginary illnesses, treatment income, daily operating costs, reputation, and bankruptcy.
-- Three research projects and comic events with meaningful decisions.
-- English and German, detected from the browser with a persistent manual override.
-- Pause and three speeds, zoom and pan, optional synthesized sound, a guide, automatic local saves, and JSON import/export.
-- Responsive desktop and mobile layout. Touch users drag room footprints; desktop users can also build with keyboard controls.
+Every new hospital starts with **empty floor, no staff, no patients and $50,000**. Place rooms, hire their staff and open the clinic when reception, diagnosis and pharmacy are ready.
 
-## Play
+- **Guided tutorial:** Bea guides sixteen concrete steps: build and staff reception, diagnosis and pharmacy; open the clinic; read a personal patient chart; treat patients; provide a lounge, restrooms and maintenance; upgrade busy departments; earn **$100,000 actual profit in a completed financial year**. Suggested floor areas and one-click placement help beginners, while manual room drawing stays available.
+- **Story 1 — A practice of your own:** establish a working community practice and reach treatment and reputation goals.
+- **Story 2 — Head in the clouds:** develop a daydream specialty practice, complete twelve successful therapy cases and research better bedside manner.
+- **Story 3 — A perfectly imperfect practice:** run a cosmetic specialty clinic, complete eighteen glow-up treatments for filteritis and smile-lock cases, and research more efficient paperwork.
+- **Free play:** all departments available, no forced victory target. Reputation, queues, fatigue, upkeep and bankruptcy still apply.
 
-The first diagnosis room, pharmacy, staff lounge, doctor, nurse, and maintenance worker are included. Build restrooms, then watch patient queues. New departments need the appropriate staff. Start new campaign episodes or free play by clicking the hospital name at the top.
+Existing version-one hospitals are migrated without deleting rooms, cash or active patients. They are offered the new tutorial, and can instead continue their existing game. Export a save before replacing a hospital if you want to keep both.
 
-**Controls:** Space pauses; 1/2/3 change speed; B toggles diagnosis construction; Escape cancels. Drag a rectangle of at least 3×3 tiles to construct a room. Doors must remain reachable. Mouse wheel zooms; right drag or arrow keys pan. With construction selected and the canvas focused, arrow keys move the tile cursor and Enter sets each corner. Select a room for details, upgrades, or demolition.
+## Actual patient journeys and records
 
-One game day lasts 90 simulation seconds. Wages and room upkeep are billed daily. Free play has no victory target, but finances and reputation still matter. Reaching less than −$5,000 or zero reputation ends a shift. Events pause the simulation until a response is chosen. The game pauses when its tab is hidden.
+Every new patient must complete **staffed reception → diagnosis → the correct treatment → departure**. Rosa Reed is the dedicated receptionist. An empty reception or missing receptionist stops registration; doctors do not bypass it.
 
-Saves are local to the current browser/device. Export a save from Settings to transfer it. Game state, including deterministic random state, survives reloads. Starting a new hospital asks before replacing the current shift.
+Every admitted person receives a permanent individual chart with a unique patient number, name, birth date, age, occupation, insurance, allergies, priority, complaint, diagnosis, admission/discharge details, itemized charges and a timestamped care timeline with staff and department names. Diagnosis stays hidden until it is completed. The patient directory includes active and discharged people, and records remain available after characters leave the floor and after reloading the game. Imported legacy patients have explicitly marked legacy records because earlier versions did not record their past care history.
 
-## Run locally
+The six original staff archetypes and three patient appearances use processed OpenArt sprite frames, directional facing, gait bob, leaning and work/rest reactions. Staff walk between assigned departments and their breaks. Click a character or use the patient directory to inspect it.
 
-Requires Node.js 20+; the game has no npm or runtime API dependencies.
+## Comedy with consequences
+
+Comic events affect the simulation:
+
+- **Don Fusilli and the Towel Family** offer $12,000 financing, repaid as eight monthly $2,250 installments: $18,000 total. Principal is financing; the $6,000 interest is an expense. Accepting is optional.
+- A **self-aware printer** can be repaired or allowed to slow diagnosis for two months.
+- A **rubber-duck inspection** rewards cleanliness or costs reputation.
+- A **beauty-vlogger group** produces a specialty-patient rush.
+- Coffee incidents, donations and ordinary patient surges create further decisions.
+
+Events pause the simulation while the player chooses. Tutorial events begin after the basic lessons, so they do not interrupt initial construction.
+
+## Calendar and finances
+
+A game year contains **twelve 30-second simulation months**: six minutes at 1×, three minutes at 2×, or two minutes at 3×, plus paused planning and decisions. The initial planning phase does not advance the calendar or generate patients.
+
+The game's simplified profit is **income minus operating costs, supplies, building, recruitment, upgrades and research**. Initial capital and loan principal are excluded. Monthly bills, including December's, are charged before an annual report closes. The tutorial checks a completed annual result and the completed lessons; it does not use a projected run rate or the cash balance. Missing the first year's target allows another year. Income, operating expenses, investment, loan obligations and completed annual reports can be inspected in Finances.
+
+Less than −$5,000 cash or zero reputation ends a shift.
+
+## Controls and saves
+
+Space pauses; 1/2/3 change speed; B toggles construction; Escape cancels. Drag a rectangle of at least 3×3 tiles to build. Doorways must stay accessible. Mouse wheel zooms; right drag or arrows pan. With construction selected and the canvas focused, arrows move the cursor and Enter sets each corner. Select a room to inspect, upgrade or demolish it.
+
+English/German follow the browser automatically, with a persistent manual override. Saves are local to this browser/device. Settings provides JSON import/export, optional synthesized audio, and a new-hospital menu. The simulation pauses when its tab is hidden. The mobile layout keeps the guide and room palette accessible.
+
+## Art
+
+The original ensemble and both new full-body sprite sheets were generated through the owner's signed-in **OpenArt** account using GPT Image 2. See [`PROVENANCE.md`](public/assets/PROVENANCE.md) and [`PROVENANCE-V2.md`](public/assets/PROVENANCE-V2.md) for prompts, layout and processing details. The procedural room geometry is interactive game scenery. Fonts ship with their SIL Open Font Licenses.
+
+The cast, setting, dialogue and illnesses are original. This game is not affiliated with an existing television series or hospital game and contains no copied series audio, scripts or game assets.
+
+## Development and publishing
+
+Node.js 20+; no npm runtime dependencies.
 
 ```sh
 npm run dev
@@ -38,18 +67,6 @@ npm run check
 npm run build
 ```
 
-Serve `dist/` with any static HTTP server. Opening `index.html` as a `file://` URL will not load ES modules reliably.
+Serve `dist/` with any static HTTP server. The GitHub Actions workflow validates and publishes pushes to `main` using GitHub Pages. Asset paths support the `/scrubssitel/` project path.
 
-## GitHub Pages
-
-`.github/workflows/pages.yml` runs syntax checks and simulation tests, builds the static output, and deploys it through GitHub Actions. In repository Settings → Pages, the source is **GitHub Actions**. Every push to `main` publishes the checked version. All asset paths are relative to support the `/scrubssitel/` project path.
-
-## Art and originality
-
-The ensemble artwork was generated in the owner's signed-in **OpenArt** account, with GPT Image 2. The exact prompt and generation details are in [`public/assets/PROVENANCE.md`](public/assets/PROVENANCE.md). The five figures have original names, designs, roles, and dialogue. The hospital is a procedural interactive game scene. Fonts are bundled with their SIL Open Font Licenses in `public/assets/fonts/`.
-
-This is an independent game with its own setting and assets, not an official adaptation of a television series or an existing game. No series audio, scripts, actor likeness assets, character names, or copied game assets are included.
-
-## Validation
-
-Node tests cover treatment and money flow, collision/access checks, the financial ledger, events at negative balances, all campaign goals, sandbox behavior, support-room upgrades, deterministic save continuation, malformed imports, occupied-room safety, pause behavior, and translation completeness. Additional simulations exercised 30-minute sessions with research, events, construction, and 90 save/restore cycles.
+Automated tests cover empty starts, guide progression, staffed reception, persistent patient charts, real year-end accounting, loan principal/interest, modifiers, all tutorial seeds and story goals, access constraints, deterministic saves, imported-state validation, legacy migration and bilingual completeness. A separate DOM/native-Canvas smoke exercise covers the complete guide setup, personal charts/archive, language switching, annual accounts and free play with the actual OpenArt sprites.
