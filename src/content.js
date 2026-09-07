@@ -1,5 +1,6 @@
 export const tr = (value, lang='en') => typeof value==='object' ? value[lang] ?? value.en : value;
 export const ROOMS = {
+  waiting:{cost:900,role:null,time:0,color:'#f3d5a8',icon:'▥',name:{en:'Waiting area',de:'Wartebereich'},desc:{en:'Real seats, magazines from the future and a very patient plant. Seated patients lose 65% less patience. Larger rooms have more seats; upgrades improve comfort.',de:'Echte Sitzplätze, Zeitschriften aus der Zukunft und eine sehr geduldige Pflanze. Sitzende Patienten verlieren 65 % weniger Geduld. Größere Räume bieten mehr Plätze; Ausbauten erhöhen den Komfort.'}},
   reception:{cost:1600,role:'receptionist',time:2.5,color:'#e6b68a',icon:'▤',name:{en:'Reception',de:'Rezeption'},desc:{en:'First stop for every patient. Must be staffed by a receptionist.',de:'Erste Station für jeden Patienten. Muss von einer Empfangskraft besetzt sein.'}},
   gp: {cost:1400, role:'doctor', time:8, color:'#8dc9b5', icon:'✚', name:{en:'Diagnosis',de:'Diagnostik'}, desc:{en:'Every curious case starts here. Requires a doctor.',de:'Hier beginnt jeder kuriose Fall. Benötigt einen Arzt.'}},
   pharmacy:{cost:1800,role:'nurse',time:10,color:'#9fbce3',icon:'⚕',name:{en:'Pharmacy',de:'Apotheke'},desc:{en:'A spoonful of science. Requires a nurse.',de:'Ein Löffel Wissenschaft. Benötigt eine Pflegekraft.'}},
