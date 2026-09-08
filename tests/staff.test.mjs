@@ -1,3 +1,4 @@
+import {furnishedRoom} from './helpers.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -7,9 +8,9 @@ const DT=.05,near=(a,b)=>Math.abs(a-b)<1e-7;
 function tick(g,n=1){for(let i=0;i<n;i++)g.update(DT);}
 function until(g,pred,seconds=120,check=()=>{}){for(let i=0;i<seconds/DT&&!pred();i++){check();tick(g);}assert.ok(pred(),'condition not reached before '+seconds+' seconds');}
 function clinic({lounge=true}={}){
- const g=new Game({mode:'sandbox',seed:42});assert.equal(g.version,5,'This suite describes the new v5 contract.');
- for(const st of GUIDE.slice(0,6)){const r=st.room?g.addRoom(st.room,st.rect):g.hire(st.cast);assert.equal(r.error,undefined);}
- if(lounge)assert.ok(g.addRoom('lounge',{x:17,y:2,w:3,h:3}).room);
+ const g=new Game({mode:'sandbox',seed:42});assert.equal(g.version,6,'This suite describes the new v5 contract.');
+ for(const st of GUIDE.slice(0,6)){const r=st.room?furnishedRoom(g,st.room,st.rect):g.hire(st.cast);assert.equal(r.error,undefined);}
+ if(lounge)assert.ok(furnishedRoom(g,'lounge',{x:17,y:2,w:3,h:3}).room);
  g.openClinic();g.arrivalTimer=999999;g.nextEvent=999999;
  until(g,()=>g.staff.every(s=>g.staffReady(s)));
  for(const s of g.staff)s.nextBreakAt=g.clock+10000;
@@ -63,7 +64,7 @@ test('native v4 migration preserves a committed patient and ignores forged v5 em
  const source=JSON.parse(fs.readFileSync(new URL('./fixtures/legacy-v4-in-service.json',import.meta.url),'utf8'));
  for(const s of source.staff)Object.assign(s,{x:NaN,y:-500,path:[{x:900,y:900}],state:'break',breakRoomId:99999,breakSeatIndex:0,breakPending:'forged',nextBreakAt:'forged',breakElapsed:99999,breakCount:-1});
  const original=JSON.parse(fs.readFileSync(new URL('./fixtures/legacy-v4-in-service.json',import.meta.url),'utf8'));
- const a=Game.restore(original),b=Game.restore(source);assert.equal(a.version,5);assert.deepEqual(a.snapshot(),b.snapshot());
+ const a=Game.restore(original),b=Game.restore(source);assert.equal(a.version,6);assert.deepEqual(a.snapshot(),b.snapshot());
  const s=doctor(a),r=roomOf(a,'gp'),id=r.patientId;assert.ok(gStaffReady(a,s));
  until(a,()=>r.patientId!==id,60,()=>assert.ok(gStaffReady(a,s),'migration interrupted existing service'));
  assert.equal(a.record(id).timeline.filter(e=>e.code==='diagnosed').length,1);
@@ -91,7 +92,7 @@ for(const phase of ['called','inside'])test('a break request during '+phase+' pr
  const g=clinic(),s=doctor(g),r=roomOf(g,'gp'),p=g.spawnPatient('jitters');until(g,()=>p.stage==='diagnosis'&&p.state===phase);g.requestBreak(s.id);until(g,()=>p.stage==='treatment'&&r.patientId===null,60,()=>assert.ok(g.staffReady(s)));until(g,()=>s.state==='travelBreak');assert.equal(g.record(p.id).timeline.filter(e=>e.code==='diagnosed').length,1);
 });
 test('research pauses during the researcher’s journeys and lounge break',()=>{
- const g=clinic();const r=g.addRoom('lab',{x:17,y:7,w:4,h:3}).room,s=g.hire('park').staff;assert.equal(s.roomId,r.id);g.startResearch('care');tick(g,20);assert.equal(g.project.progress,0);until(g,()=>g.staffReady(s));tick(g,10);assert.ok(g.project.progress>0);g.requestBreak(s.id);tick(g);const progress=g.project.progress;until(g,()=>s.state==='break');tick(g,20);assert.equal(g.project.progress,progress);
+ const g=clinic();const r=furnishedRoom(g,'lab',{x:17,y:7,w:4,h:3}).room,s=g.hire('park').staff;assert.equal(s.roomId,r.id);g.startResearch('care');tick(g,20);assert.equal(g.project.progress,0);until(g,()=>g.staffReady(s));tick(g,10);assert.ok(g.project.progress>0);g.requestBreak(s.id);tick(g);const progress=g.project.progress;until(g,()=>s.state==='break');tick(g,20);assert.equal(g.project.progress,progress);
 });
 test('a cleaner on a break does not provide invisible cleaning',()=>{
  const g=clinic(),s=g.hire('otto').staff;g.requestBreak(s.id);until(g,()=>s.state==='break');g.cleanliness=70;tick(g,20);assert.ok(g.cleanliness<70);until(g,()=>s.state==='cleaning');const before=g.cleanliness;tick(g,20);assert.ok(g.cleanliness>before);
@@ -105,5 +106,5 @@ test('a cleaner reaches an exact standing break position even within the same gr
 });
 
 test('building over a future patrol stop redirects the cleaner around the new room',()=>{
- const g=clinic({lounge:false}),s=g.hire('otto').staff;until(g,()=>s.destination?.x===19&&s.destination?.y===8);const r=g.addRoom('toilet',{x:18,y:7,w:3,h:3}).room;assert.ok(r);assert.ok(!g.contains(r,s.destination));for(let i=0;i<600;i++){tick(g);assert.ok(!g.contains(r,s),'cleaner crossed the new room wall');}assert.deepEqual(Game.restore(g.snapshot()).snapshot(),g.snapshot());
+ const g=clinic({lounge:false}),s=g.hire('otto').staff;until(g,()=>s.destination?.x===19&&s.destination?.y===8);const r=furnishedRoom(g,'toilet',{x:18,y:7,w:3,h:3}).room;assert.ok(r);assert.ok(!g.contains(r,s.destination));for(let i=0;i<600;i++){tick(g);assert.ok(!g.contains(r,s),'cleaner crossed the new room wall');}assert.deepEqual(Game.restore(g.snapshot()).snapshot(),g.snapshot());
 });

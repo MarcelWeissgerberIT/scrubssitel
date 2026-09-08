@@ -50,7 +50,7 @@ export function skeleton(a,person){
   let elbow=[side*.27,swing*.45,hipHeight+.11],hand=[side*.26,swing,hipHeight-.015];
   elbow=elbow.map((v,i)=>mix(v,[side*.20,.16,hipHeight+.08][i],sit));hand=hand.map((v,i)=>mix(v,[side*.13,.28,hipHeight+.015][i],sit));
   const work=a.work*(1-a.celebrate),beat=Math.sin(t*(person.role==='receptionist'?9:4)+side)*.022;
-  const workingHand=person.role==='janitor'?[side*.09,.30+Math.sin(t*3)*.09,hipHeight+.03]:person.role==='receptionist'?[side*.12,.46, .63+beat*.4]:[side*.12,.29,hipHeight+.17+beat];
+  const workingHand=person.role==='janitor'?[side*.09,.30+Math.sin(t*3)*.09,hipHeight+.03]:person.role==='receptionist'?[side*.12,.57,.63+beat*.4]:[side*.12,.29,hipHeight+.17+beat];
   hand=hand.map((v,i)=>mix(v,workingHand[i],work));elbow=elbow.map((v,i)=>mix(v,[side*.23,.13,hipHeight+.17][i],work));
   if(side===1){const joy=a.celebrate;hand=hand.map((v,i)=>mix(v,[.29+Math.sin(t*8)*.04,.02,head[2]+.16][i],joy));elbow=elbow.map((v,i)=>mix(v,[.34,0,chest[2]+.12][i],joy));}
   arms.push({side,shoulder,elbow,hand});

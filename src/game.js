@@ -3,6 +3,8 @@ import {ROOMS, CAST, ILLNESSES, LEVELS, PROJECTS, EVENTS} from './content.js';
 import {MONTH_SECONDS,YEAR_SECONDS,ANNUAL_TARGET,GUIDE,guideIndex} from './tutorial.js';
 import {candidates,candidate,RECRUITMENT_FEE} from './recruitment.js';
 import {waitingSeats} from './objects.js';
+import {insidePath,patientPoint,segmentBlocked} from './layout.js';
+import * as furnishing from './furnishing.js';
 export const GRID={w:24,h:18};
 export const ENTRY={x:12,y:16};
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -10,17 +12,32 @@ const key=(x,y)=>`${x},${y}`;
 const names=['Alex','Sam','Robin','Jamie','Casey','Lou','Charlie','River','Jules','Taylor','Kim','Morgan','Rene','Ari','Noor','Sasha','Drew','Billie'];
 export class Game {
  constructor({level=1,mode='tutorial',seed=Date.now()}={}){
-  this.version=5;this.queueSerial=0;this.callSerial=0;this.calls=[];this.recruitmentRound=0;this.applicantIds=candidates(0).map(c=>c.id);this.mode=mode;this.level=level;this.rng=seed>>>0||1;this.clock=0;this.day=1;this.cash=50000;
+  this.version=6;this.queueSerial=0;this.callSerial=0;this.calls=[];this.recruitmentRound=0;this.applicantIds=candidates(0).map(c=>c.id);this.mode=mode;this.level=level;this.rng=seed>>>0||1;this.clock=0;this.day=1;this.cash=50000;
   this.rep=60;this.cured=0;this.failed=0;this.left=0;this.cleanliness=95;this.rooms=[];this.staff=[];this.patients=[];this.logs=[];this.id=0;this.income=0;this.expenses=0;this.construction=0;this.completed=[];this.project=null;this.event=null;this.nextEvent=75;this.arrivalTimer=4;this.won=false;this.over=false;this.ledger=[];
   this.admissionsOpen=false;this.calendar=0;this.year=1;this.month=1;this.yearStart={income:0,expenses:0,construction:0};this.accountOrigin={income:0,expenses:0,construction:0};this.financialYears=[];this.records=[];this.patientSerial=0;this.tutorial={chartRead:false};this.contracts=[];this.financing=0;this.modifiers=[];this.eventsSeen=[];this.curedByRoom={};
  }
  checkTutorial(){if(this.mode==='tutorial'&&!this.won&&guideIndex(this)>=GUIDE.length-1&&this.financialYears.some(y=>y.profit>=ANNUAL_TARGET)){this.won=true;this.log('completedTutorial');}}
- guide(){return this.mode==='tutorial'&&!this.won?{...GUIDE[guideIndex(this)],index:guideIndex(this)}:null;}
- openClinic(){for(const type of ['reception','gp','pharmacy'])if(!this.rooms.some(r=>r.type===type&&r.staffId))return {error:'openingRequirements'};this.admissionsOpen=true;this.arrivalTimer=1;this.log('clinicOpened');return {};}
+ guide(){
+  if(this.mode!=='tutorial'||this.won)return null;
+  const index=guideIndex(this),step=GUIDE[index],unfinished=step.room?this.rooms.find(r=>r.type===step.room&&!this.roomReady(r)):null;
+  if(unfinished)return {id:'furnish-'+unfinished.type,furnish:true,roomId:unfinished.id,index,title:{en:'Make this room your own',de:'Richte diesen Raum selbst ein'},text:{en:'Place the required furniture. Green access markers need clear paths to the door. You choose the positions; furniture can be moved again later.',de:'Platziere die benötigten Möbel. Die grünen Zugangspunkte brauchen freie Wege zur Tür. Du bestimmst die Positionen und kannst später umräumen.'}};
+  return {...step,index};
+ }
+ skipTutorial(){if(this.mode==='tutorial'){this.mode='sandbox';this.won=false;}return {};}
+ roomReady(r){return furnishing.roomReady(r);}
+ beginRoomEdit(id){return furnishing.beginRoomEdit(this,id);}
+ furniturePlacement(id,item,ignoreId){return furnishing.furniturePlacement(this,id,item,ignoreId);}
+ addFurniture(id,kind,position){return furnishing.addFurniture(this,id,kind,position);}
+ moveFurniture(id,item,position){return furnishing.moveFurniture(this,id,item,position);}
+ removeFurniture(id,item){return furnishing.removeFurniture(this,id,item);}
+ autoFurnish(id){return furnishing.autoFurnish(this,id);}
+ finishRoom(id){return furnishing.finishRoom(this,id);}
+
+ openClinic(){for(const type of ['reception','gp','pharmacy'])if(!this.rooms.some(r=>r.type===type&&r.staffId&&this.roomReady(r)))return {error:'openingRequirements'};this.admissionsOpen=true;this.arrivalTimer=1;this.log('clinicOpened');return {};}
  yearlyProfit(){return (this.income-this.yearStart.income)-(this.expenses-this.yearStart.expenses)-(this.construction-this.yearStart.construction);}
  annualReport(){return {year:this.year,income:this.income-this.yearStart.income,expenses:this.expenses-this.yearStart.expenses,construction:this.construction-this.yearStart.construction,profit:this.yearlyProfit()};}
  closeYear(){const report=this.annualReport();this.financialYears.push({...report,closingCash:this.cash});this.checkTutorial();this.yearStart={income:this.income,expenses:this.expenses,construction:this.construction};this.year++;this.log('yearClosed',String(report.profit));}
- treatmentFee(p,r=null){const base=ILLNESSES.find(i=>i.id===p.illness).fee;return Math.round(base*(this.mode==='tutorial'?12:1)*(1+((r?.level||1)-1)*.1));}
+ treatmentFee(p,r=null){const base=ILLNESSES.find(i=>i.id===p.illness).fee;return Math.round(base*(this.mode==='tutorial'?12.5:1)*(1+((r?.level||1)-1)*.1));}
  diagnosisFee(){return this.mode==='tutorial'?400:90;}
  record(id){return this.records.find(r=>r.id===id);}
  recordEvent(p,code,r=null,amount=0){const record=this.record(p.id);if(!record)return;record.timeline.push({time:this.clock,year:this.year,month:this.month,code,roomId:r?.id??null,roomType:r?.type??null,staffName:this.staff.find(s=>s.id===r?.staffId)?.name||'',amount});record.status=code;if(code==='diagnosed')record.diagnosed=true;if(amount>0){record.bill+=amount;if(code==='diagnosed')record.diagnosisCharge+=amount;else record.treatmentCharge+=amount;}}
@@ -50,9 +67,21 @@ export class Game {
   for(const s of this.staff){const inside=this.rooms.find(r=>this.contains(r,s));if(this.path(ENTRY,inside?this.door(inside):s,all)===null)return 'badPlacement';}
   if(this.cash<ROOMS[type].cost)return 'notEnough';return null;
  }
- addRoom(type,rect,free=false){const error=free?null:this.placement(type,rect);if(error)return {error};const r={id:++this.id,type,...rect,level:1,condition:100,staffId:null,patientId:null,progress:0,doorOpen:0,doorHeld:false};this.rooms.push(r);if(!free){this.cash-=ROOMS[type].cost;this.construction+=ROOMS[type].cost;this.log('built',type);}this.assignStaff();this.repath();this.rebalance(type);this.checkTutorial();return {room:r};}
+ addRoom(type,rect,free=false){const error=free?null:this.placement(type,rect);if(error)return {error};const r={id:++this.id,type,...rect,level:1,condition:100,staffId:null,patientId:null,progress:0,doorOpen:0,doorHeld:false,furniture:[],ready:false,editing:true,renovating:false};this.rooms.push(r);if(!free){this.cash-=ROOMS[type].cost;this.construction+=ROOMS[type].cost;this.log('built',type);}this.assignStaff();this.repath();this.rebalance(type);this.checkTutorial();return {room:r};}
  rebalance(type){for(const p of this.patients)if(p.state==='waiting'&&this.need(p)===type)this.routePatient(p);}
- repath(){repathStaff(this);for(const p of this.patients){if(p.state==='relocating'&&p.path.length)p.path=this.corridorPath(p,p.path.at(-1))||[];if(p.state==='travel'&&p.targetRoom){const r=this.room(p.targetRoom);if(r)p.path=this.corridorPath(p,this.door(r))||[];}if(p.state==='seatTravel'){const r=this.room(p.seatRoom);if(r)p.path=[...(this.corridorPath(p,this.door(r))||[]),...this.enterPath(r,this.seats(r)[p.seatIndex])];}if(p.state==='inside'){const r=this.room(p.targetRoom);if(r&&!this.contains(r,p))p.path=[...(this.corridorPath(p,this.door(r))||[]),...this.enterPath(r,this.servicePoint(r))];}if(p.state==='exit')p.path=this.corridorPath(p,ENTRY)||[];}}
+ repath(){
+  repathStaff(this);
+  for(const p of this.patients){const r=this.room(p.targetRoom),seatRoom=this.room(p.seatRoom);let route;
+   if(p.state==='relocating'&&p.path.length)route=this.corridorPath(p,p.path.at(-1));
+   else if(p.state==='travel'&&r)route=this.corridorPath(p,this.door(r));
+   else if(p.state==='seatTravel'&&seatRoom)route=this.routeInto(p,seatRoom,this.seats(seatRoom)[p.seatIndex]);
+   else if(p.state==='inside'&&r)route=this.routeInto(p,r,this.servicePoint(r));
+   else if(p.state==='roomExit'&&r)route=this.exitPath(r,p);
+   else if(p.state==='exit')route=this.corridorPath(p,ENTRY);
+   if(route!==undefined&&route!==null)p.path=route;
+  }
+ }
+
  room(id){return this.rooms.find(r=>r.id===id);}
  applicants(role=null){return this.applicantIds.map(candidate).filter(c=>c&&(!role||c.role===role));}
  refreshApplicants(){if(this.cash<RECRUITMENT_FEE)return {error:'notEnough'};if(this.recruitmentRound>=10000)return {error:'noApplicants'};this.cash-=RECRUITMENT_FEE;this.expenses+=RECRUITMENT_FEE;this.recruitmentRound++;this.applicantIds=candidates(this.recruitmentRound).map(c=>c.id);this.log('newApplicants');return {};}
@@ -62,7 +91,7 @@ export class Game {
  assignStaff(){
   for(const s of this.staff){if(s.roomId&&!this.room(s.roomId))s.roomId=null;}
   for(const r of this.rooms){if(r.staffId&&!this.staff.some(s=>s.id===r.staffId)){r.staffId=null;}}
-  for(const r of this.rooms){if(!ROOMS[r.type].role||r.staffId)continue;const s=this.staff.find(s=>s.role===ROOMS[r.type].role&&!s.roomId&&!s.resting);if(s){r.staffId=s.id;s.roomId=r.id;}}
+  for(const r of this.rooms){if(!ROOMS[r.type].role||r.staffId||!this.roomReady(r))continue;const s=this.staff.find(s=>s.role===ROOMS[r.type].role&&!s.roomId&&!s.resting);if(s){r.staffId=s.id;s.roomId=r.id;}}
  }
  upgrade(id){const r=this.room(id);if(!r)return {};if(r.level>=3)return {error:'maxLevel'};const cost=Math.round(ROOMS[r.type].cost*.65*r.level);if(this.cash<cost)return {error:'notEnough'};this.cash-=cost;this.construction+=cost;r.level++;r.condition=100;this.log('upgraded',r.type);this.checkTutorial();return {};}
  sell(id){const r=this.room(id);if(!r)return {};if(r.patientId||this.patients.some(p=>p.seatRoom===id||this.contains(r,p))||this.staff.some(s=>this.contains(r,s)||s.breakRoomId===id||s.destination?.roomId===id))return {error:'removeBusy'};const s=this.staff.find(s=>s.id===r.staffId);if(s)s.roomId=null;for(const p of this.patients)if(p.targetRoom===id){p.path=this.corridorPath(p,this.room(p.seatRoom)?this.door(this.room(p.seatRoom)):p)||[];p.seatRoom=null;p.seatIndex=null;p.targetRoom=null;p.state=p.path.length?'relocating':'waiting';}this.cash+=Math.round(ROOMS[r.type].cost*.5);this.construction-=Math.round(ROOMS[r.type].cost*.5);this.rooms=this.rooms.filter(r=>r.id!==id);this.assignStaff();repathStaff(this);return {};}
@@ -70,7 +99,7 @@ export class Game {
  storyGoalsMet(){const level=LEVELS[this.level-1];return this.cured>=level.goal&&this.rep>=level.rep&&(!level.specialty||(this.curedByRoom[level.specialty]||0)>=level.specialtyGoal)&&(!level.project||this.completed.includes(level.project));}
  dailyCost(){return this.staff.reduce((a,s)=>a+s.wage,0)+this.rooms.reduce((a,r)=>a+Math.round(ROOMS[r.type].cost*.025*r.level),0);}
  success(r){const s=this.staff.find(s=>s.id===r.staffId);return clamp((this.mode==='tutorial'?.85:.79)+(s?.skill||1)*.07+(r.level-1)*.035+(this.completed.includes('care')?.12:0)-(100-this.cleanliness)*.0015-(100-r.condition)*.001, .5,.99);}
- startResearch(id){const p=PROJECTS.find(p=>p.id===id);if(!p||this.project||this.completed.includes(id))return {};if(!this.rooms.some(r=>r.type==='lab'))return {error:'noResearch'};if(this.cash<p.cost)return {error:'notEnough'};this.cash-=p.cost;this.construction+=p.cost;this.project={id,progress:0};return {};}
+ startResearch(id){const p=PROJECTS.find(p=>p.id===id);if(!p||this.project||this.completed.includes(id))return {};if(!this.rooms.some(r=>r.type==='lab'&&this.roomReady(r)))return {error:'noResearch'};if(this.cash<p.cost)return {error:'notEnough'};this.cash-=p.cost;this.construction+=p.cost;this.project={id,progress:0};return {};}
  resolveEvent(index){if(!this.event)return {};const ev=EVENTS.find(e=>e.id===this.event);const c=ev.choices[index];if(!c)return {};if(c.cost>0&&this.cash<c.cost)return {error:'notEnough'};this.cash-=c.cost;if(c.cost>0)this.expenses+=c.cost;else this.income-=c.cost;
   if(c.effect==='mafiaLoan'){this.cash+=12000;this.financing+=12000;this.contracts.push({months:8});}
   if(c.effect==='paperwork')this.modifiers.push({kind:'paperwork',endsAt:this.clock+60});
@@ -95,29 +124,52 @@ export class Game {
  waitingList(type=null){return this.patients.filter(p=>p.registered&&p.stage!=='exit'&&['waiting','travel','queue','seatTravel','seated','relocating'].includes(p.state)&&(!type||this.need(p)===type)).sort((a,b)=>a.queueOrder-b.queueOrder||a.id-b.id);}
  staffReady(s){return staffReady(this,s);}
  requestBreak(id){return requestBreak(this,id);}
- callNext(r){const staff=this.staff.find(s=>s.id===r.staffId);if(r.patientId||!this.staffReady(staff)||staff.breakPending||!ROOMS[r.type].time)return false;const p=r.type==='reception'?this.patients.filter(p=>p.targetRoom===r.id&&['queue','travel','seatTravel','seated'].includes(p.state)).sort((a,b)=>a.id-b.id)[0]:this.waitingList(r.type)[0];if(!p||!['queue','seated'].includes(p.state))return false;r.patientId=p.id;r.progress=0;p.targetRoom=r.id;p.state='called';p.calledAt=this.clock;p.path=[];p.seatRoom=null;p.seatIndex=null;if(p.registered){const call={id:++this.callSerial,patientId:p.id,name:p.name,roomId:r.id,roomType:r.type,time:this.clock};this.calls.push(call);this.calls=this.calls.slice(-12);this.recordEvent(p,'called',r);}return true;}
+ callNext(r){const staff=this.staff.find(s=>s.id===r.staffId);if(!this.roomReady(r)||r.patientId||!this.staffReady(staff)||staff.breakPending||!ROOMS[r.type].time)return false;const p=r.type==='reception'?this.patients.filter(p=>p.targetRoom===r.id&&['queue','travel','seatTravel','seated'].includes(p.state)).sort((a,b)=>a.id-b.id)[0]:this.waitingList(r.type)[0];if(!p||!['queue','seated'].includes(p.state))return false;r.patientId=p.id;r.progress=0;p.targetRoom=r.id;p.state='called';p.calledAt=this.clock;p.path=[];p.seatRoom=null;p.seatIndex=null;if(p.registered){const call={id:++this.callSerial,patientId:p.id,name:p.name,roomId:r.id,roomType:r.type,time:this.clock};this.calls.push(call);this.calls=this.calls.slice(-12);this.recordEvent(p,'called',r);}return true;}
  toggleDoor(id){const r=this.room(id);if(r)r.doorHeld=!r.doorHeld;}
  updateDoors(dt){for(const r of this.rooms){const d=this.door(r),inner={x:d.x,y:r.y<8?r.y+r.h-1:r.y};const near=this.staff.some(s=>s.path.length&&Math.min(Math.hypot(s.x-d.x,s.y-d.y),Math.hypot(s.x-inner.x,s.y-inner.y))<1.5)||this.patients.some(p=>['called','inside','roomExit','seatTravel','relocating','exit'].includes(p.state)&&Math.min(Math.hypot(p.x-d.x,p.y-d.y),Math.hypot(p.x-inner.x,p.y-inner.y))<1.5);const target=r.doorHeld||near?1:0;r.doorOpen=clamp(r.doorOpen+(target?1:-1)*dt*5,0,1);}}
  queue(r){if(r.type!=='reception'&&ROOMS[r.type].time)return this.waitingList(r.type).length;return this.patients.filter(p=>p.targetRoom===r.id&&['waiting','travel','queue','seatTravel','seated','relocating'].includes(p.state)).length;}
- contains(r,p){return p.x>=r.x&&p.x<r.x+r.w&&p.y>=r.y&&p.y<r.y+r.h;}
- servicePoint(r){return r.type==='reception'?{x:r.x+r.w*.5-.5,y:r.y+2}:{x:r.x+r.w*.66-.5,y:r.y+r.h*.65-.5};}
- enterPath(r,to){const door=this.door(r);if(r.type==='waiting')return [{x:door.x,y:r.y<8?r.y+r.h-1:r.y},{x:door.x,y:to.y+.85},{x:to.x,y:to.y+.85},to];return [{x:door.x,y:r.y<8?r.y+r.h-1:r.y},{x:door.x,y:to.y},to];}
- exitPath(r,p){const door=this.door(r);if(r.type==='waiting')return [{x:p.x,y:p.y+.85},{x:door.x,y:p.y+.85},{x:door.x,y:r.y<8?r.y+r.h-1:r.y},door];return [{x:door.x,y:p.y},{x:door.x,y:r.y<8?r.y+r.h-1:r.y},door];}
- corridorPath(p,to){const inside=this.rooms.find(r=>this.contains(r,p));if(!inside)return this.path(p,to);return [...this.exitPath(inside,p),...(this.path(this.door(inside),to)||[])];}
+ contains(r,p){return p.x+.5>r.x+1e-7&&p.x+.5<r.x+r.w-1e-7&&p.y+.5>r.y+1e-7&&p.y+.5<r.y+r.h-1e-7;}
+ servicePoint(r){return Array.isArray(r.furniture)?patientPoint(r):r.type==='reception'?{x:r.x+r.w*.5-.5,y:r.y+2}:{x:r.x+r.w*.66-.5,y:r.y+r.h*.65-.5};}
+ insideRoute(r,from,to){return to?insidePath(r,from,to):null;}
+ enterPath(r,to){return this.insideRoute(r,this.door(r),to);}
+ exitPath(r,p){return this.insideRoute(r,p,this.door(r));}
+ routeInto(p,r,to){
+  if(this.contains(r,p))return this.insideRoute(r,p,to);
+  const outside=this.corridorPath(p,this.door(r)),inside=this.enterPath(r,to);return outside===null||inside===null?null:[...outside,...inside];
+ }
+ corridorPath(p,to){const inside=this.rooms.find(r=>this.contains(r,p));if(!inside)return this.path(p,to);const exit=this.exitPath(inside,p),corridor=this.path(this.door(inside),to);return exit===null||corridor===null?null:[...exit,...corridor];}
+
  seats(r){return waitingSeats(r);}
  seatStats(){const capacity=this.rooms.reduce((n,r)=>n+this.seats(r).length,0),reserved=this.patients.filter(p=>p.seatRoom!==null).length,seated=this.patients.filter(p=>p.state==='seated').length;return {capacity,reserved,seated,standing:this.patients.filter(p=>p.state==='queue').length};}
- reserveSeat(p){if(p.seatRoom!==null)return false;const choices=this.rooms.filter(r=>r.type==='waiting').flatMap(r=>{const path=this.corridorPath(p,this.door(r));return this.seats(r).map((seat,index)=>({r,seat,index,path}));}).filter(v=>v.path!==null&&!this.patients.some(q=>q.seatRoom===v.r.id&&q.seatIndex===v.index)).sort((a,b)=>a.path.length-b.path.length||a.index-b.index);if(!choices.length)return false;const {r,seat,index,path}=choices[0];p.seatRoom=r.id;p.seatIndex=index;p.path=[...path,...this.enterPath(r,seat)];p.state='seatTravel';return true;}
+ reserveSeat(p){
+  if(p.seatRoom!==null)return false;
+  const choices=this.rooms.filter(r=>r.type==='waiting'&&this.roomReady(r)).flatMap(r=>this.seats(r).map((seat,index)=>({r,seat,index,path:this.routeInto(p,r,seat)}))).filter(v=>v.path!==null&&!this.patients.some(q=>q.seatRoom===v.r.id&&q.seatIndex===v.index)).sort((a,b)=>a.path.length-b.path.length||a.index-b.index);
+  if(!choices.length)return false;const {r,index,path}=choices[0];p.seatRoom=r.id;p.seatIndex=index;p.path=path;p.state='seatTravel';return true;
+ }
+
  standingPoint(r,p){const d=this.door(r),spots=[];for(let radius=1;radius<=3;radius++)for(let dx=-radius;dx<=radius;dx++)for(let dy=-radius;dy<=radius;dy++){if(Math.abs(dx)+Math.abs(dy)!==radius)continue;const spot={x:d.x+dx,y:d.y+dy};if(spot.x<1||spot.x>22||spot.y<1||spot.y>16||this.occupied(spot.x,spot.y)||this.rooms.some(room=>{const door=this.door(room);return door.x===spot.x&&door.y===spot.y;})||this.patients.some(q=>q.id!==p.id&&([q,q.path.at(-1)].some(v=>v&&Math.hypot(v.x-spot.x,v.y-spot.y)<.6))))continue;const path=this.corridorPath(p,spot);if(path!==null)spots.push({spot,path});}return spots.sort((a,b)=>a.path.length-b.path.length)[0]||{spot:d,path:this.corridorPath(p,d)||[]};}
- routePatient(p){const type=this.need(p);const choices=this.rooms.filter(r=>r.type===type&&r.staffId).map(r=>({r,path:this.corridorPath(p,this.door(r))})).filter(v=>v.path!==null).sort((a,b)=>(this.queue(a.r)+(a.r.patientId?1:0))-(this.queue(b.r)+(b.r.patientId?1:0))||a.path.length-b.path.length);if(!choices.length)return;const {r,path}=choices[0],busy=p.registered||r.patientId||this.queue(r)>0;p.targetRoom=r.id;p.path=path;p.state='travel';if(busy&&!this.reserveSeat(p))p.path=this.standingPoint(r,p).path;}
+ routePatient(p){const type=this.need(p);const choices=this.rooms.filter(r=>r.type===type&&r.staffId&&this.roomReady(r)).map(r=>({r,path:this.corridorPath(p,this.door(r))})).filter(v=>v.path!==null).sort((a,b)=>(this.queue(a.r)+(a.r.patientId?1:0))-(this.queue(b.r)+(b.r.patientId?1:0))||a.path.length-b.path.length);if(!choices.length)return;const {r,path}=choices[0],busy=p.registered||r.patientId||this.queue(r)>0;p.targetRoom=r.id;p.path=path;p.state='travel';if(busy&&!this.reserveSeat(p))p.path=this.standingPoint(r,p).path;}
  leave(p,abandoned=false){const path=this.corridorPath(p,ENTRY)||[];const r=this.room(p.targetRoom);if(r?.patientId===p.id){r.patientId=null;r.progress=0;}if(abandoned){const record=this.record(p.id);if(record)record.outcome='left';this.recordEvent(p,'left');this.left++;this.rep=clamp(this.rep-2,0,100);this.log('left',p.name);}p.stage='exit';p.targetRoom=null;p.seatRoom=null;p.seatIndex=null;p.state='exit';p.path=path;}
- move(p,dt,pace=2.5){let distance=dt*pace;while(distance>0&&p.path.length){const t=p.path[0];const blocked=this.rooms.some(r=>{const edge=r.y<8?r.y+r.h-.5:r.y-.5;return Math.abs(p.x-this.door(r).x)<.6&&(p.y-edge)*(t.y-edge)<0&&r.doorOpen<.85;});if(blocked)break;const dx=t.x-p.x,dy=t.y-p.y,len=Math.hypot(dx,dy);if(len<=distance){p.x=t.x;p.y=t.y;p.path.shift();distance-=len;}else{p.x+=dx/len*distance;p.y+=dy/len*distance;distance=0;}}}
+ move(p,dt,pace=2.5){
+  let distance=dt*pace;
+  while(distance>0&&p.path.length){
+   const target=p.path[0],dx=target.x-p.x,dy=target.y-p.y,length=Math.hypot(dx,dy),step=Math.min(distance,length);
+   if(length<1e-9){p.path.shift();continue;}
+   const next={x:p.x+dx/length*step,y:p.y+dy/length*step};
+   const doorBlocked=this.rooms.some(r=>{const edge=r.y<8?r.y+r.h-.5:r.y-.5;return Math.abs(next.x-this.door(r).x)<.6&&Math.abs(next.y-p.y)>1e-8&&Math.min(p.y,next.y)<=edge&&Math.max(p.y,next.y)>=edge&&r.doorOpen<.85;});
+   const room=this.rooms.find(r=>this.contains(r,p)||this.contains(r,next));
+   if(doorBlocked||room&&segmentBlocked(room,p,next))break;
+   p.x=next.x;p.y=next.y;distance-=step;if(length<=step+1e-9){p.path.shift();break;}
+  }
+ }
+
  update(dt){if(this.over||this.event||dt<=0||!this.admissionsOpen)return;dt=Math.min(dt,.25);this.clock+=dt;
   this.calendar+=dt;
   const newDay=Math.floor((this.calendar+1e-7)/MONTH_SECONDS)+1;
   if(newDay>this.day){this.day=newDay;let cost=this.dailyCost();this.cash-=cost;this.expenses+=cost;for(const contract of this.contracts){if(contract.months>0){this.cash-=2250;this.financing-=1500;this.expenses+=750;cost+=2250;contract.months--;}}this.contracts=this.contracts.filter(c=>c.months>0);this.ledger.unshift({day:this.month,year:this.year,cost});this.ledger=this.ledger.slice(0,24);this.log('paid',String(cost));if((newDay-1)%12===0)this.closeYear();this.month=(newDay-1)%12+1;}
 
   this.assignStaff();this.updateDoors(dt);updateStaff(this,dt);
-  const toilet=Math.max(0,...this.rooms.filter(r=>r.type==='toilet').map(r=>r.level)),janitors=this.staff.filter(s=>s.role==='janitor'&&s.state==='cleaning'&&!s.resting).reduce((n,s)=>n+s.skill,0);
+  const toilet=Math.max(0,...this.rooms.filter(r=>r.type==='toilet'&&this.roomReady(r)).map(r=>r.level)),janitors=this.staff.filter(s=>s.role==='janitor'&&s.state==='cleaning'&&!s.resting).reduce((n,s)=>n+s.skill,0);
   this.cleanliness=clamp(this.cleanliness+dt*(janitors*.24-this.patients.length*.007-.035),0,100);
   this.modifiers=this.modifiers.filter(m=>m.endsAt>this.clock);
   for(const r of this.rooms){r.condition=clamp(r.condition+dt*(janitors*.1-(r.patientId?.055:.006)),20,100);const s=this.staff.find(s=>s.id===r.staffId);if(!this.staffReady(s))continue;if(!r.patientId){this.callNext(r);}
@@ -129,17 +181,18 @@ export class Game {
     else {const illness=ILLNESSES.find(i=>i.id===p.illness);const supplies=this.mode==='tutorial'?350:35;this.cash-=supplies;this.expenses+=supplies;if(this.random()<this.success(r)){const earned=this.treatmentFee(p,r);this.recordEvent(p,'cured',r,earned);const record=this.record(p.id);if(record)record.outcome='cured';this.cash+=earned;this.income+=earned;this.cured++;this.curedByRoom[r.type]=(this.curedByRoom[r.type]||0)+1;this.rep=clamp(this.rep+.9+(p.patience>70?.25:0),0,100);p.cured=true;this.log('cure',p.name);}else{this.recordEvent(p,'failed',r);const record=this.record(p.id);if(record)record.outcome='failed';this.failed++;this.rep=clamp(this.rep-1,0,100);this.log('failed',p.name);}p.stage='exit';}
    }
   }
-  for(const p of this.patients){if(p.state==='called'){if(this.clock-p.calledAt>=.65){const r=this.room(p.targetRoom);p.state='inside';p.path=[...(this.corridorPath(p,this.door(r))||[]),...this.enterPath(r,this.servicePoint(r))];}continue;}if(p.state==='roomExit'){this.move(p,dt);if(!p.path.length){const r=this.room(p.targetRoom);if(r){r.patientId=null;r.progress=0;}p.targetRoom=null;if(p.stage==='exit')this.leave(p);else p.state='waiting';}continue;}if(p.state==='exit'){this.move(p,dt);continue;}
-   p.patience=clamp(p.patience-dt*(p.state==='service'?.015:.28)*(p.state==='seated'?Math.max(.2,.35-((this.room(p.seatRoom)?.level||1)-1)*.05):1)*(p.child&&p.state==='seated'?.65:1)*(toilet?(.72-(toilet-1)*.1):1)*(this.completed.includes('patience')?.65:1)*(1+(100-this.cleanliness)/100),0,100);
+  for(const p of this.patients){if(p.state==='called'){if(this.clock-p.calledAt>=.65){const r=this.room(p.targetRoom);p.state='inside';p.path=this.routeInto(p,r,this.servicePoint(r))||[];}continue;}if(p.state==='roomExit'){this.move(p,dt);if(!p.path.length){const r=this.room(p.targetRoom);if(r){r.patientId=null;r.progress=0;}p.targetRoom=null;if(p.stage==='exit')this.leave(p);else p.state='waiting';}continue;}if(p.state==='exit'){this.move(p,dt);continue;}
+   p.patience=clamp(p.patience-dt*(p.state==='service'?.015:.28)*(p.state==='seated'?Math.max(.2,.35-((this.room(p.seatRoom)?.level||1)-1)*.05):1)*(p.child&&p.state==='seated'&&this.room(p.seatRoom)?.furniture.some(o=>o.kind==='toys')?.65:1)*(toilet?(.72-(toilet-1)*.1):1)*(this.completed.includes('patience')?.65:1)*(1+(100-this.cleanliness)/100),0,100);
    if(p.patience<=0&&p.state!=='service'&&p.state!=='inside'){this.leave(p,true);continue;}
    if(p.state==='waiting')this.routePatient(p);
-   if(['travel','inside','seatTravel','relocating'].includes(p.state)){this.move(p,dt);if(!p.path.length){if(p.state==='inside')this.recordEvent(p,'serviceStarted',this.room(p.targetRoom));p.state={inside:'service',travel:'queue',seatTravel:'seated',relocating:'waiting'}[p.state];}}
+   if(['travel','inside','seatTravel','relocating'].includes(p.state)){this.move(p,dt);if(!p.path.length){const destination=p.state==='inside'?this.servicePoint(this.room(p.targetRoom)):p.state==='seatTravel'?this.seats(this.room(p.seatRoom))[p.seatIndex]:null;if(destination&&Math.hypot(p.x-destination.x,p.y-destination.y)>.08)continue;if(p.state==='inside')this.recordEvent(p,'serviceStarted',this.room(p.targetRoom));p.state={inside:'service',travel:'queue',seatTravel:'seated',relocating:'waiting'}[p.state];}}
    if(p.state==='queue'&&this.room(p.targetRoom)?.patientId&&Math.floor(this.clock*2)!==Math.floor((this.clock-dt)*2))this.reserveSeat(p);
    if(['queue','seated','seatTravel','travel'].includes(p.state)&&!this.room(p.targetRoom)?.staffId){const wr=this.room(p.seatRoom);p.path=wr?this.corridorPath(p,this.door(wr))||[]:[];p.state=p.path.length?'relocating':'waiting';p.seatRoom=null;p.seatIndex=null;p.targetRoom=null;}
   }
   for(const p of this.patients)if(p.state==='exit'&&!p.path.length){const record=this.record(p.id);if(record){record.dischargedAt=this.clock;this.recordEvent(p,'discharged');}}
   this.patients=this.patients.filter(p=>!(p.state==='exit'&&!p.path.length));
   if(this.project){const lab=this.rooms.find(r=>r.type==='lab'&&this.staffReady(this.staff.find(s=>s.id===r.staffId)));if(lab){this.project.progress+=dt*(this.staff.find(s=>s.id===lab.staffId)?.skill||1)*(1+(lab.level-1)*.3);const project=PROJECTS.find(p=>p.id===this.project.id);if(this.project.progress>=project.time){this.completed.push(project.id);this.project=null;this.log('researchDone',project.id);}}}
+  for(const r of this.rooms)if(r.renovating&&!furnishing.roomBusy(this,r))furnishing.beginRoomEdit(this,r.id);
   this.arrivalTimer-=dt;if(this.arrivalTimer<=0){this.spawnPatient();this.arrivalTimer=(this.mode==='tutorial'?8:this.mode==='sandbox'?8:LEVELS[this.level-1].arrival)*(.85+this.random()*.3);}
   if(this.clock>=this.nextEvent&&(this.mode!=='tutorial'||guideIndex(this)>=GUIDE.length-1)){const options=EVENTS.filter(e=>(!e.minLevel||this.mode==='sandbox'||this.level>=e.minLevel)&&!(e.id==='mafia'&&this.contracts.length));this.event=options[Math.floor(this.random()*options.length)].id;this.nextEvent=this.clock+95+this.random()*30;}
   if(this.mode==='campaign'&&!this.won){const target=LEVELS[this.level-1];if(this.storyGoalsMet()){this.won=true;this.log('completed');}}
@@ -151,11 +204,12 @@ export class Game {
   data.records=(data.patients||[]).map((p,i)=>({id:p.id,number:'CG-L'+String(i+1).padStart(5,'0'),name:p.name,age:30+p.id%40,birthDate:`${2026-(30+p.id%40)}-06-15`,occupation:p.id%6,insurance:p.id%3,allergy:p.id%4,priority:'priorityRoutine',illness:p.illness,variant:p.variant||0,admittedAt:0,admittedYear:1,admittedMonth:1,dischargedAt:null,status:'legacyRecord',diagnosed:p.stage!=='diagnosis',bill:0,diagnosisCharge:0,treatmentCharge:0,outcome:null,timeline:[{time:data.clock,year:1,month:1,code:'legacyRecord',roomId:null,roomType:null,staffName:'',amount:0}]}));return data;
  }
  static restore(data){
+  if(data?.version<6){data=JSON.parse(JSON.stringify(data));for(const r of data.rooms||[]){delete r.furniture;delete r.ready;delete r.editing;delete r.renovating;}}
   if(data?.version===1)data=Game.migrate(data);
   if(data?.version===2){data=JSON.parse(JSON.stringify(data));data.version=3;data.recruitmentRound=0;data.applicantIds=candidates(0).filter(c=>!data.staff.some(s=>s.name===c.name)).map(c=>c.id);for(const s of data.staff)if(!s.applicantId){s.personality='steady';s.fatigueRate=1;}for(const p of data.patients){p.seatRoom=null;p.seatIndex=null;}}
   if(data?.version===3){data=JSON.parse(JSON.stringify(data));data.version=4;data.queueSerial=0;data.callSerial=0;data.calls=[];const ordered=data.patients.slice().sort((a,b)=>{const at=p=>data.records.find(r=>r.id===p.id)?.timeline.filter(e=>['registered','diagnosed'].includes(e.code)).at(-1)?.time||0;return at(a)-at(b)||a.id-b.id;});for(const r of data.rooms){r.doorOpen=1;r.doorHeld=false;}for(const p of ordered){p.registered=['diagnosis','treatment'].includes(p.stage)||!!p.registered;p.age=data.records.find(r=>r.id===p.id)?.age||30;p.child=p.age<16;p.queueOrder=p.registered?++data.queueSerial:0;p.calledAt=null;if(['seated','seatTravel'].includes(p.state)){p.seatRoom=null;p.seatIndex=null;p.state='waiting';p.path=[];}}}
   if(data?.version===4){data=JSON.parse(JSON.stringify(data));data.version=5;migrateStaff(data);}
-  if(!data||data.version!==5||!['tutorial','campaign','sandbox'].includes(data.mode)||![1,2,3].includes(data.level))throw Error('Invalid save');
+  if(!data||![5,6].includes(data.version)||!['tutorial','campaign','sandbox'].includes(data.mode)||![1,2,3].includes(data.level))throw Error('Invalid save');
   const isNum=v=>typeof v==='number'&&Number.isFinite(v);for(const key of ['rng','clock','day','cash','rep','cured','failed','left','cleanliness','id','income','expenses','construction','nextEvent','arrivalTimer'])if(!isNum(data[key]))throw Error('Invalid number');
   if(data.clock<0||data.rep<0||data.rep>100||!Array.isArray(data.rooms)||data.rooms.length>100||!Array.isArray(data.patients)||data.patients.length>60||!Array.isArray(data.staff)||data.staff.length>100)throw Error('Invalid entities');
   const ids=new Set();for(const entity of [...data.rooms,...data.staff,...data.patients]){if(!Number.isInteger(entity.id)||ids.has(entity.id))throw Error('Invalid id');ids.add(entity.id);}
@@ -194,6 +248,7 @@ export class Game {
   for(const p of data.patients)if(typeof p.registered!=='boolean'||['diagnosis','treatment'].includes(p.stage)&&!p.registered||p.age!==data.records.find(r=>r.id===p.id).age||p.child!==(p.age<16)||!Number.isInteger(p.queueOrder)||p.queueOrder<0||p.queueOrder>data.queueSerial||p.calledAt!==null&&!isNum(p.calledAt)||p.state==='called'&&!isNum(p.calledAt))throw Error('Invalid appointment');
   const g=Object.create(Game.prototype);for(const field of fields)g[field]=JSON.parse(JSON.stringify(data[field]));
   for(const r of g.rooms)if(g.path(ENTRY,g.door(r))===null)throw Error('Inaccessible room');
-  validateStaff(g);g.assignStaff();return g;
+  if(g.version===5){validateStaff(g);furnishing.migrateFurniture(g);}else{furnishing.validateFurniture(g);validateStaff(g);}
+  g.assignStaff();return g;
  }
 }

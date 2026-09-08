@@ -23,9 +23,35 @@ const STAFF_LOOKS={
  surgeon:[LOOKS.nia,{skin:'#efb991',hair:'#ba552d',shirt:'#58978b',pants:'#3a7068',shoes:'#f3e7d2',style:'ponytail',freckles:true,medical:true},{skin:'#d6b293',hair:'#bbc2bc',shirt:'#a788a9',pants:'#716380',shoes:'#eceddf',style:'bald',moustache:true,stout:true,medical:true,headWidth:.26}],
  janitor:[LOOKS.otto,{skin:'#81543d',hair:'#302920',shirt:'#719aba',sleeve:'#e4c77d',pants:'#48728d',shoes:'#695341',style:'curls',headWidth:.25},{skin:'#efbb99',hair:'#b84e27',shirt:'#aa7ea5',sleeve:'#a9d0b9',pants:'#7b638c',shoes:'#f1d59c',style:'bun',glasses:true,freckles:true}]
 };
+const PATIENT_SKIN=['#edbf98','#dca77c','#c28a5f','#a96e4a','#895437','#6d4433','#efc9ac','#b78061'];
+const PATIENT_HAIR=['#30251f','#64432d','#9b6036','#ba7c44','#cfad70','#493b33','#783f29'];
+const PATIENT_CLOTHES=[
+ ['#d87859','#f0bb86','#456b7b'],['#588fa7','#b4d6cc','#314d6e'],['#9270ae','#dcc4dc','#777185'],
+ ['#53a392','#d0e4b3','#c49a58'],['#cc9d44','#f1d595','#536d82'],['#b05f76','#e6b6ac','#65506c'],
+ ['#728f4f','#c5d595','#856249'],['#518486','#8cc0c0','#555f74'],['#c27742','#e6bc72','#547978'],
+ ['#8399bf','#dde1ec','#9b7056'],['#ac7d93','#ead2be','#506575'],['#9d594b','#d9a184','#374b62']
+];
+const hashKey=value=>{let seed=2166136261;for(const c of String(value))seed=Math.imul(seed^c.charCodeAt(0),16777619);return seed>>>0;};
+function patientAppearance(person){
+ const variant=Math.abs(Number(person.variant)||0)%3,age=Number.isFinite(person.age)?person.age:null;
+ const child=age===null?!!person.child:age<16,group=child?'child':age===null?(variant===2?'senior':'adult'):age>=65?'senior':age>=40?'mature':'adult';
+ const key=`patient:${person.id??'variant-'+variant}:${group}:${variant}`,pick=(values,channel)=>values[hashKey(key+':'+channel)%values.length];
+ const base=LOOKS[`${child?'child':'patient'}-${variant}`],outfit=pick(PATIENT_CLOTHES,'clothes');
+ const styles=child?['curls','bob','ponytail','tuft','sweep','bun']:group==='senior'?['bob','bun','sweep','bald','tuft']:group==='mature'?['curls','bob','ponytail','sweep','bun','bald']:['curls','bob','ponytail','sweep','bun','tuft'];
+ const hair=group==='senior'?pick(['#d1cec4','#a7aaa4','#bab4a5','#797b75','#d8d5cc','#665c50'],'hair'):pick(PATIENT_HAIR,'hair');
+ return {key,look:{...base,patient:true,skin:pick(PATIENT_SKIN,'skin'),hair,shirt:outfit[0],sleeve:outfit[1],pants:outfit[2],
+  shoes:pick(child?['#f1dc98','#e89c75','#8bc2c5','#edead8']:['#ede4ca','#625347','#47666a','#9a7050'],'shoes'),style:pick(styles,'style'),
+  glasses:hashKey(key+':glasses')%(group==='senior'?3:child?8:6)===0,freckles:hashKey(key+':freckles')%4===0,
+  iris:pick(['#7c5636','#5c786e','#787f46','#6c7895'],'iris'),accent:outfit[1],pattern:pick(['plain','stripe','dots','cardigan'],'pattern')}};
+}
 export function appearanceFor(person){
  const id=person.applicantId??(typeof person.id==='string'?person.id:''),match=/^(\d+)-(receptionist|doctor|nurse|surgeon|janitor)-([0-2])$/.exec(id);
- if(!match){const key=person.castId||`${person.child?'child':'patient'}-${person.variant||0}`;return {key,look:LOOKS[key]||LOOKS.milo};}
+ if(!match){
+  const key=person.castId||`${person.child?'child':'patient'}-${person.variant||0}`;
+  // Recruitment and legacy employee identities must never acquire patient variation.
+  if(person.role||person.applicantId||person.castId&&!/^(patient|child)-/.test(person.castId))return {key,look:LOOKS[key]||LOOKS.milo};
+  return patientAppearance(person);
+ }
  const round=Number(match[1]),base=STAFF_LOOKS[match[2]][Number(match[3])];if(!round)return {key:id,look:base};
  const shirts=['#bd8675','#79a6ad','#ab97bd','#8aaa82','#cead65'],hair=['#4b342a','#aa6038','#706454','#c1beb0'];
  return {key:id,look:{...base,hair:hair[(round+Number(match[3]))%hair.length],shirt:shirts[(round+Number(match[3])*2)%shirts.length],sleeve:base.medical?base.sleeve:shirts[(round+Number(match[3])*2+1)%shirts.length]}};
@@ -52,7 +78,7 @@ export class CharacterModel{
    commands.push({depth:points.reduce((sum,p)=>sum+p.depth,0)/4+.025,draw:()=>{c.beginPath();c.moveTo(points[0].x,points[0].y);c.bezierCurveTo(points[1].x,points[1].y+u*.010,points[2].x,points[2].y+u*.010,points[3].x,points[3].y);c.quadraticCurveTo((points[0].x+points[3].x)/2,(points[0].y+points[3].y)/2+u*.006,points[0].x,points[0].y);c.fillStyle='#723c32';c.fill();c.beginPath();c.moveTo(points[0].x+u*.009,points[0].y+u*.009);c.quadraticCurveTo((points[0].x+points[3].x)/2,(points[0].y+points[3].y)/2+u*.015,points[3].x-u*.009,points[3].y+u*.009);c.strokeStyle='#fff5df';c.lineWidth=u*.010;c.lineCap='round';c.stroke();}});
   };
   if(part==='hands'){
-   for(const arm of pose.arms){const fraction=Math.max(0,Math.min(1,(.39-arm.elbow[1])/(arm.hand[1]-arm.elbow[1]||1))),start=arm.elbow.map((v,i)=>v+(arm.hand[i]-v)*fraction);bone(start,arm.hand,.069,look.skin);sphere(arm.hand,.084,.070,.072,look.skin);}
+   for(const arm of pose.arms){const fraction=Math.max(0,Math.min(1,(.52-arm.elbow[1])/(arm.hand[1]-arm.elbow[1]||1))),start=arm.elbow.map((v,i)=>v+(arm.hand[i]-v)*fraction);bone(start,arm.hand,.069,look.skin);sphere(arm.hand,.084,.070,.072,look.skin);}
    commands.sort((a,b)=>a.depth-b.depth);for(const command of commands)command.draw();return;
   }
   // Feet retain their ground contact; knees and elbows are articulated joints.
@@ -73,7 +99,7 @@ export class CharacterModel{
    for(const side of [-1,1]){
     const ex=side*(look.eyeSpacing||.091)*1.17,ey=hy+.211;
     sphere([ex,ey,hz+.026],.057,.032,blink?.008:.059,'#fdf8e9',.003);
-    sphere([ex+.006,ey+.026,hz+.024],.034,.022,blink?.004:.040,look.skin==='#bd8056'?'#776334':'#865735',.004);
+    sphere([ex+.006,ey+.026,hz+.024],.034,.022,blink?.004:.040,look.iris||(look.skin==='#bd8056'?'#776334':'#865735'),.004);
     sphere([ex+.007,ey+.042,hz+.024],.018,.012,blink?.003:.029,'#282b24',.005);
     if(!blink)sphere([ex-.009,ey+.052,hz+.042],.012,.008,.014,'#ffffff',.005);
     line([[ex-.051,ey-.005,hz+.103],[ex,ey+.010,hz+.12],[ex+.044,ey-.004,hz+.106]],look.hair,.018);
@@ -104,6 +130,10 @@ export class CharacterModel{
    line([[-.125,.18,z+.075],[0,.203,z+.017],[.125,.18,z+.075]],look.medical?'#f4f0dc':color(look.shirt,-28),.027,.017);
    if(!look.medical){for(const side of [-1,1])panel([[0,.203,z+.04],[side*.09,.19,z+.075],[side*.13,.195,z+.032]],look.sleeve||color(look.shirt,28));line([[0,.179,z+.015],[0,.184,waist+.006]],color(look.shirt,-25),.012,.02);for(let i=0;i<3;i++)sphere([.022,.187,waist+.03+i*.06],.009,.009,.009,'#f3d8a1',.025);}
    for(const side of [-1,1]){const px=side*.13;panel([[px-.052,.178,waist+.135],[px+.052,.178,waist+.135],[px+.045,.174,waist+.046],[px-.045,.174,waist+.046]],color(look.shirt,-9));line([[px-.052,.181,waist+.13],[px+.052,.181,waist+.13]],color(look.shirt,34),.008,.022);}
+   // Fabric marks add identity on the existing torso surface; body/pose geometry is unchanged.
+   if(look.patient&&look.pattern==='stripe')for(let i=0;i<3;i++)line([[-.16,.187,waist+.07+i*.05],[0,.202,waist+.075+i*.05],[.16,.187,waist+.07+i*.05]],look.accent,.018,.026);
+   if(look.patient&&look.pattern==='dots')for(let i=0;i<6;i++){const xx=(i%3-1)*.10,zz=waist+.08+Math.floor(i/3)*.075;line([[xx-.004,.201-Math.abs(xx)*.09,zz],[xx+.004,.201-Math.abs(xx)*.09,zz]],look.accent,.016,.026);}
+   if(look.patient&&look.pattern==='cardigan')for(const side of [-1,1])line([[side*.065,.192,z+.022],[side*.04,.206,waist+.14],[side*.04,.191,waist+.015]],look.accent,.024,.026);
    if(look.medical){line([[-.085,.195,z+.035],[-.12,.208,z-.09],[0,.225,z-.14],[.12,.208,z-.09],[.085,.195,z+.035]],'#395c61',.019,.018);sphere([0,.23,z-.14],.034,.021,.036,'#d2deda',.024);sphere([0,.249,z-.14],.020,.01,.022,'#6e9698',.025);}
    if(look.tie)line([[0,.144,pose.chest[2]+.03],[.025,.15,pose.hip[2]+.06]],'#edc66a',.05);
    if(person.castId==='rosa')line([[0,.138,pose.chest[2]], [0,.142,pose.hip[2]+.03]],'#efd797',.021);

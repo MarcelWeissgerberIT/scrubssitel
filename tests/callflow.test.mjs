@@ -1,3 +1,5 @@
+import {defaultFurniture,insidePath,pointBlocked,segmentBlocked} from '../src/layout.js';
+import {furnishedRoom} from './helpers.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Game} from '../src/game.js';
@@ -18,7 +20,7 @@ function clinic({waiting = true, secondDoctor = false} = {}) {
   ];
   if (waiting) rooms.push(['waiting', {x:7,y:8,w:3,h:3}]);
   if (secondDoctor) rooms.push(['gp', {x:2,y:8,w:3,h:3}]);
-  for (const [type, rect] of rooms) ok(g.addRoom(type, rect), `build ${type}`);
+  for (const [type, rect] of rooms) ok(furnishedRoom(g,type, rect), `build ${type}`);
   for (const id of ['rosa', 'milo', 'bea', 'otto']) ok(g.hire(id), `hire ${id}`);
   if (secondDoctor) ok(g.hire('milo'), 'hire second doctor');
   ok(g.openClinic(), 'open');
@@ -227,9 +229,9 @@ for (const state of ['inside','service','roomExit']) contract(`synthetic schema-
   const g=clinic(), p=g.spawnPatient('jitters');
   until(g,()=>p.state===state&&g.room(p.targetRoom)?.type==='gp');
   const old=schema3Shape(g), migrated=Game.restore(old), person=migrated.patients[0];
-  assert.equal(migrated.version,5);
+  assert.equal(migrated.version,6);
   assert.equal(person.state,state);
-  assert.deepEqual({x:person.x,y:person.y},{x:p.x,y:p.y});
+  const occupied=migrated.rooms.find(r=>migrated.contains(r,person));if(occupied)assert.equal(pointBlocked(occupied,person,{allowInteraction:true}),false,'Legacy anchors move clear of newly solid furniture');
   for (const field of ['cash','income','expenses','construction','cured','failed']) assert.equal(migrated[field],old[field]);
   assert.equal(migrated.calls.length,0,'Migration does not invent audible calls');
   assert.equal(person.child,migrated.record(person.id).age<16);
@@ -240,6 +242,6 @@ for (const state of ['inside','service','roomExit']) contract(`synthetic schema-
 
 contract('v1 patients without registration metadata can finish their legacy visit',()=>{const g=clinic({waiting:false}),p=g.spawnPatient('jitters'),old=g.snapshot();old.version=1;const person=old.patients[0];person.stage='diagnosis';delete person.registered;person.targetRoom=null;person.state='waiting';const restored=Game.restore(old);assert.equal(restored.patients[0].registered,true);until(restored,()=>restored.record(p.id).dischargedAt!==null);assert.equal(restored.callSerial,2);});
 
-contract('toys reduce a seated child’s patience loss relative to an adult',()=>{const g=clinic(),people=prepareQueue(g,2);for(const r of g.rooms)if(r.type==='waiting')r.w=6;for(const p of people){p.seatRoom=null;p.seatIndex=null;g.reserveSeat(p);}until(g,()=>people.every(p=>p.state==='seated'),{before:holdDoctors});const [child,adult]=people;child.child=true;adult.child=false;child.patience=adult.patience=100;holdDoctors(g);advance(g);assert.ok(Math.abs((100-child.patience)/(100-adult.patience)-.65)<1e-8);});
+contract('toys reduce a seated child’s patience loss relative to an adult',()=>{const g=clinic(),waiting=g.rooms.find(r=>r.type==='waiting');assert.equal(g.beginRoomEdit(waiting.id).pending,undefined);assert.equal(g.addFurniture(waiting.id,'toys',{x:.25,y:2.25,rotation:0}).error,undefined);assert.equal(g.finishRoom(waiting.id).error,undefined);const people=prepareQueue(g,2);for(const p of people){p.seatRoom=null;p.seatIndex=null;g.reserveSeat(p);}until(g,()=>people.every(p=>p.state==='seated'),{before:holdDoctors});const [child,adult]=people;child.child=true;adult.child=false;child.patience=adult.patience=100;holdDoctors(g);advance(g);assert.ok(Math.abs((100-child.patience)/(100-adult.patience)-.65)<1e-8);});
 
-contract('waiting room seat furniture and reservations use the same unobstructed layout',async()=>{const {roomObjects,waitingSeats,OBJECT_INFO}=await import('../src/objects.js');for(const w of [3,6,10])for(const h of [3,5,8]){const r={id:1,type:'waiting',x:2,y:8,w,h},objects=roomObjects(r),seats=waitingSeats(r),door=Game.prototype.door(r);assert.equal(objects.filter(o=>['chair','sofa'].includes(o.kind)).reduce((sum,o)=>sum+(o.seats||1),0),seats.length);assert.ok(seats.every(s=>Math.abs(s.x-door.x)>.7));assert.ok(objects.some(o=>o.kind==='toys'));assert.equal(new Set(objects.map(o=>o.id)).size,objects.length);for(const o of objects)assert.ok(OBJECT_INFO[o.kind].flat().every(s=>s.length>5));}});
+contract('waiting room furniture and reservations share reachable seats in every size',async()=>{const {roomObjects,waitingSeats,OBJECT_INFO}=await import('../src/objects.js');for(const w of [3,6,10])for(const h of [3,5,8]){const r={id:1,type:'waiting',x:2,y:8,w,h};r.furniture=defaultFurniture(r);const objects=roomObjects(r),seats=waitingSeats(r),door=Game.prototype.door(r);assert.equal(objects.filter(o=>['chair','sofa'].includes(o.kind)).reduce((sum,o)=>sum+(o.seats||1),0),seats.length);for(const seat of seats){const path=insidePath(r,door,seat);assert.ok(path);for(let i=0;i<path.length;i++)assert.equal(segmentBlocked(r,i?path[i-1]:door,path[i]),false);}assert.equal(new Set(objects.map(o=>o.id)).size,objects.length);for(const o of objects)assert.ok(OBJECT_INFO[o.kind].flat().every(s=>s.length>5));}});

@@ -1,10 +1,11 @@
+import {furnishedRoom} from './helpers.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Game} from '../src/game.js';
 import {GUIDE} from '../src/tutorial.js';
 import {EVENTS} from '../src/content.js';
 function tick(g,n){for(let i=0;i<n*20;i++){if(g.event){const ev=EVENTS.find(e=>e.id===g.event);g.resolveEvent(Math.max(0,ev.choices.findIndex(c=>c.cost===0&&c.effect!=='mafiaLoan')));}g.update(.05);}}
-function setup(){const g=new Game({seed:42});for(const s of GUIDE.slice(0,7)){if(s.room)assert.ok(g.addRoom(s.room,s.rect).room);if(s.cast)assert.ok(g.hire(s.cast).staff);}g.openClinic();g.arrivalTimer=99999;g.nextEvent=99999;return g;}
+function setup(){const g=new Game({seed:42});for(const s of GUIDE.slice(0,7)){if(s.room)assert.ok(furnishedRoom(g,s.room,s.rect).room);if(s.cast)assert.ok(g.hire(s.cast).staff);}g.openClinic();g.arrivalTimer=99999;g.nextEvent=99999;return g;}
 test('a busy clinic reserves unique seats, keeps overflow moving and gives seated patients comfort',()=>{
  const g=setup(),reception=g.rooms.find(r=>r.type==='reception');const receptionist=g.staff.find(s=>s.id===reception.staffId);receptionist.fatigue=85;g.requestBreak(receptionist.id);
  for(let i=0;i<10;i++)g.spawnPatient('jitters');tick(g,18);
@@ -27,5 +28,5 @@ test('applicant choices are consumed once, carry different contracts, and advert
 });
 test('v2 saves keep their clinic and acquire the applicant market without resetting finances',()=>{
  const g=setup();tick(g,60);const old=g.snapshot();old.version=2;delete old.applicantIds;delete old.recruitmentRound;for(const s of old.staff){delete s.applicantId;delete s.personality;delete s.fatigueRate;}for(const p of old.patients){p.seatRoom=null;p.seatIndex=null;if(['seatTravel','seated'].includes(p.state)){p.state='waiting';p.targetRoom=null;p.path=[];}}
- const restored=Game.restore(old);assert.equal(restored.cash,old.cash);assert.deepEqual(restored.records,old.records);assert.equal(restored.clock,old.clock);assert.equal(restored.version,5);assert.ok(restored.applicants('nurse').length>0);tick(restored,100);assert.ok(restored.cured>=g.cured);
+ const restored=Game.restore(old);assert.equal(restored.cash,old.cash);assert.deepEqual(restored.records,old.records);assert.equal(restored.clock,old.clock);assert.equal(restored.version,6);assert.ok(restored.applicants('nurse').length>0);tick(restored,100);assert.ok(restored.cured>=g.cured);
 });
