@@ -1,4 +1,4 @@
-# Scrubssitel
+# Funny Hospital
 
 A cute, original hospital and specialty-practice management comedy game, with a fully articulated cast based on the original OpenArt character designs.
 
@@ -9,6 +9,8 @@ A cute, original hospital and specialty-practice management comedy game, with a 
 Every new hospital starts with **empty floor, no staff, no patients and $50,000**. Draw room shells, place their required furniture, hire their staff and open the clinic when reception, diagnosis and pharmacy are ready.
 
 A new room is an empty shell with a door. Its editor lists the required equipment. Place, rotate, move and remove furniture on a quarter-tile grid; access markers show where people need to stand or sit. Overlaps, blocked doors and inaccessible workstations are rejected. An optional starter layout is available for empty rooms. Finish the room to activate it, or save an unfinished draft for later.
+
+The furniture catalog shows actual game-model previews in the room’s colors, with names, prices and floor dimensions. Placed items retain a small preview in their saved orientation. Already placed equipment stays visible and labeled in the catalog.
 
 Each visit first shows that empty floor with a short bilingual introduction. Choose **Start step by step** to build the first reception, or explicitly **Continue saved clinic** to load an existing hospital. Previewing the introduction, changing language, opening help and leaving the page never overwrite the saved clinic. A fresh start replaces an existing save only after confirmation; exporting from the introduction exports that existing save. Story and free play also begin empty and show a short setup briefing.
 
