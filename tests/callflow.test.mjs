@@ -24,6 +24,8 @@ function clinic({waiting = true, secondDoctor = false} = {}) {
   ok(g.openClinic(), 'open');
   g.arrivalTimer = 1e9;
   g.nextEvent = 1e9;
+  for(let i=0;i<400;i++)g.update(DT);
+  for(const s of g.staff)s.nextBreakAt=1e9;
   return g;
 }
 function advance(g, before) {
@@ -225,7 +227,7 @@ for (const state of ['inside','service','roomExit']) contract(`synthetic schema-
   const g=clinic(), p=g.spawnPatient('jitters');
   until(g,()=>p.state===state&&g.room(p.targetRoom)?.type==='gp');
   const old=schema3Shape(g), migrated=Game.restore(old), person=migrated.patients[0];
-  assert.equal(migrated.version,4);
+  assert.equal(migrated.version,5);
   assert.equal(person.state,state);
   assert.deepEqual({x:person.x,y:person.y},{x:p.x,y:p.y});
   for (const field of ['cash','income','expenses','construction','cured','failed']) assert.equal(migrated[field],old[field]);

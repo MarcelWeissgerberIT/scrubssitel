@@ -1,0 +1,371 @@
+{
+  "version": 4,
+  "queueSerial": 1,
+  "callSerial": 1,
+  "calls": [
+    {
+      "id": 1,
+      "patientId": 16,
+      "name": "Sam Wagner",
+      "roomId": 5,
+      "roomType": "gp",
+      "time": 15.450000000000085
+    }
+  ],
+  "recruitmentRound": 0,
+  "applicantIds": [
+    "0-receptionist-1",
+    "0-receptionist-2",
+    "0-doctor-1",
+    "0-doctor-2",
+    "0-nurse-1",
+    "0-nurse-2",
+    "0-surgeon-0",
+    "0-surgeon-1",
+    "0-surgeon-2",
+    "0-janitor-0",
+    "0-janitor-1",
+    "0-janitor-2"
+  ],
+  "mode": "sandbox",
+  "level": 1,
+  "rng": 4271921684,
+  "clock": 18.400000000000126,
+  "day": 1,
+  "cash": 42450,
+  "rep": 60,
+  "cured": 0,
+  "failed": 0,
+  "left": 0,
+  "cleanliness": 94.2272000000005,
+  "rooms": [
+    {
+      "id": 1,
+      "type": "reception",
+      "x": 15,
+      "y": 12,
+      "w": 5,
+      "h": 4,
+      "level": 1,
+      "condition": 99.62990000000048,
+      "staffId": 3,
+      "patientId": null,
+      "progress": 0,
+      "doorOpen": 0,
+      "doorHeld": false
+    },
+    {
+      "id": 5,
+      "type": "gp",
+      "x": 2,
+      "y": 2,
+      "w": 5,
+      "h": 4,
+      "level": 1,
+      "condition": 99.74505000000096,
+      "staffId": 7,
+      "patientId": 16,
+      "progress": 0,
+      "doorOpen": 1,
+      "doorHeld": false
+    },
+    {
+      "id": 9,
+      "type": "pharmacy",
+      "x": 8,
+      "y": 2,
+      "w": 5,
+      "h": 4,
+      "level": 1,
+      "condition": 99.88960000000156,
+      "staffId": 11,
+      "patientId": null,
+      "progress": 0,
+      "doorOpen": 0,
+      "doorHeld": false
+    },
+    {
+      "id": 13,
+      "type": "lounge",
+      "x": 17,
+      "y": 2,
+      "w": 3,
+      "h": 3,
+      "level": 1,
+      "condition": 99.88960000000156,
+      "staffId": null,
+      "patientId": null,
+      "progress": 0,
+      "doorOpen": 0,
+      "doorHeld": false
+    }
+  ],
+  "staff": [
+    {
+      "id": 3,
+      "name": "Rosa Reed",
+      "role": "receptionist",
+      "color": "#d48e50",
+      "portrait": 5,
+      "skill": 1.15,
+      "wage": 140,
+      "hire": 650,
+      "quote": {
+        "en": "“Name, symptoms, and your least dramatic explanation, please.”",
+        "de": "„Name, Symptome und bitte die am wenigsten dramatische Erklärung.“"
+      },
+      "trait": {
+        "en": "Unflappable first impression",
+        "de": "Unerschütterlich am Empfang"
+      },
+      "castId": "rosa",
+      "round": 0,
+      "personality": "steady",
+      "fatigueRate": 1,
+      "applicantId": "0-receptionist-0",
+      "fatigue": 0.3459999999999987,
+      "resting": false,
+      "roomId": 1
+    },
+    {
+      "id": 7,
+      "name": "Dr. Milo Finch",
+      "role": "doctor",
+      "color": "#4ba99b",
+      "portrait": 0,
+      "skill": 1.05,
+      "wage": 150,
+      "hire": 650,
+      "quote": {
+        "en": "“My diagnosis? An excellent learning opportunity.”",
+        "de": "„Meine Diagnose? Eine hervorragende Lernchance.“"
+      },
+      "trait": {
+        "en": "Optimistic overthinker",
+        "de": "Optimistischer Grübler"
+      },
+      "castId": "milo",
+      "round": 0,
+      "personality": "steady",
+      "fatigueRate": 1,
+      "applicantId": "0-doctor-0",
+      "fatigue": 95,
+      "resting": false,
+      "roomId": 5
+    },
+    {
+      "id": 11,
+      "name": "Bea Bell",
+      "role": "nurse",
+      "color": "#668bc1",
+      "portrait": 3,
+      "skill": 1.1,
+      "wage": 130,
+      "hire": 550,
+      "quote": {
+        "en": "“I have a system. Please stop having symptoms in it.”",
+        "de": "„Ich habe ein System. Bitte keine Symptome darin.“"
+      },
+      "trait": {
+        "en": "The actual boss",
+        "de": "Die eigentliche Chefin"
+      },
+      "castId": "bea",
+      "round": 0,
+      "personality": "steady",
+      "fatigueRate": 1,
+      "applicantId": "0-nurse-0",
+      "fatigue": 86,
+      "resting": true,
+      "roomId": 9
+    }
+  ],
+  "patients": [
+    {
+      "id": 16,
+      "name": "Sam Wagner",
+      "illness": "jitters",
+      "age": 48,
+      "child": false,
+      "queueOrder": 1,
+      "calledAt": 15.450000000000085,
+      "x": 4.800000000000001,
+      "y": 4.1,
+      "stage": "diagnosis",
+      "state": "service",
+      "patience": 95.95242350725002,
+      "targetRoom": 5,
+      "path": [],
+      "seatRoom": null,
+      "seatIndex": null,
+      "registered": true,
+      "variant": 1,
+      "color": "#568f9a",
+      "skin": "#bd865e",
+      "hair": "#81533b"
+    }
+  ],
+  "logs": [
+    {
+      "id": 15,
+      "time": 0,
+      "code": "clinicOpened",
+      "extra": ""
+    },
+    {
+      "id": 14,
+      "time": 0,
+      "code": "built",
+      "extra": "lounge"
+    },
+    {
+      "id": 12,
+      "time": 0,
+      "code": "hireDone",
+      "extra": "Bea Bell"
+    },
+    {
+      "id": 10,
+      "time": 0,
+      "code": "built",
+      "extra": "pharmacy"
+    },
+    {
+      "id": 8,
+      "time": 0,
+      "code": "hireDone",
+      "extra": "Dr. Milo Finch"
+    },
+    {
+      "id": 6,
+      "time": 0,
+      "code": "built",
+      "extra": "gp"
+    },
+    {
+      "id": 4,
+      "time": 0,
+      "code": "hireDone",
+      "extra": "Rosa Reed"
+    },
+    {
+      "id": 2,
+      "time": 0,
+      "code": "built",
+      "extra": "reception"
+    }
+  ],
+  "id": 16,
+  "income": 0,
+  "expenses": 0,
+  "construction": 7550,
+  "completed": [],
+  "project": null,
+  "event": null,
+  "nextEvent": 999999,
+  "arrivalTimer": 999980.5999999829,
+  "won": false,
+  "over": false,
+  "ledger": [],
+  "admissionsOpen": true,
+  "calendar": 18.400000000000126,
+  "year": 1,
+  "month": 1,
+  "yearStart": {
+    "income": 0,
+    "expenses": 0,
+    "construction": 0
+  },
+  "accountOrigin": {
+    "income": 0,
+    "expenses": 0,
+    "construction": 0
+  },
+  "financialYears": [],
+  "records": [
+    {
+      "id": 16,
+      "number": "CG-00001",
+      "name": "Sam Wagner",
+      "age": 48,
+      "birthDate": "1978-01-13",
+      "occupation": 0,
+      "insurance": 2,
+      "allergy": 3,
+      "priority": "priorityRoutine",
+      "illness": "jitters",
+      "variant": 1,
+      "admittedAt": 0,
+      "admittedYear": 1,
+      "admittedMonth": 1,
+      "dischargedAt": null,
+      "status": "serviceStarted",
+      "diagnosed": false,
+      "bill": 0,
+      "diagnosisCharge": 0,
+      "treatmentCharge": 0,
+      "outcome": null,
+      "timeline": [
+        {
+          "time": 0,
+          "year": 1,
+          "month": 1,
+          "code": "arrived",
+          "roomId": null,
+          "roomType": null,
+          "staffName": "",
+          "amount": 0
+        },
+        {
+          "time": 6.0499999999999865,
+          "year": 1,
+          "month": 1,
+          "code": "serviceStarted",
+          "roomId": 1,
+          "roomType": "reception",
+          "staffName": "Rosa Reed",
+          "amount": 0
+        },
+        {
+          "time": 8.249999999999982,
+          "year": 1,
+          "month": 1,
+          "code": "registered",
+          "roomId": 1,
+          "roomType": "reception",
+          "staffName": "Rosa Reed",
+          "amount": 0
+        },
+        {
+          "time": 15.450000000000085,
+          "year": 1,
+          "month": 1,
+          "code": "called",
+          "roomId": 5,
+          "roomType": "gp",
+          "staffName": "Dr. Milo Finch",
+          "amount": 0
+        },
+        {
+          "time": 18.400000000000126,
+          "year": 1,
+          "month": 1,
+          "code": "serviceStarted",
+          "roomId": 5,
+          "roomType": "gp",
+          "staffName": "Dr. Milo Finch",
+          "amount": 0
+        }
+      ]
+    }
+  ],
+  "patientSerial": 1,
+  "tutorial": {
+    "chartRead": false
+  },
+  "contracts": [],
+  "financing": 0,
+  "modifiers": [],
+  "eventsSeen": [],
+  "curedByRoom": {}
+}

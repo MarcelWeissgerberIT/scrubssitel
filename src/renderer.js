@@ -5,7 +5,7 @@ import {GRID} from './game.js';
 import {roomObjects} from './objects.js';
 const shade=(color,amount)=>{let values;if(color.startsWith('#')){const n=parseInt(color.slice(1),16);values=[n>>16,(n>>8)&255,n&255];}else values=(color.match(/[\d.]+/g)||[0,0,0]).slice(0,3).map(Number);return `rgb(${values.map(n=>Math.max(0,Math.min(255,Math.round(n+amount)))).join(',')})`;};
 export class Renderer{
- constructor(canvas,options){this.canvas=canvas;this.ctx=canvas.getContext('2d');this.options=options;this.zoom=1;this.pan={x:0,y:0};this.hover=null;this.drag=null;this.pointer=null;this.keyboard={x:3,y:11};this.selected=null;this.lang='en';this.buildType=null;this.game=null;this.staffVisuals=new Map();this.hits=[];this.lastTime=0;this.guideRect=null;this.animator=new CharacterAnimator();this.characterModel=new CharacterModel(this.ctx);this.previousPatients=new Map();this.snapshotGame=null;
+ constructor(canvas,options){this.canvas=canvas;this.ctx=canvas.getContext('2d');this.options=options;this.zoom=1;this.pan={x:0,y:0};this.hover=null;this.drag=null;this.pointer=null;this.keyboard={x:3,y:11};this.selected=null;this.lang='en';this.buildType=null;this.game=null;this.staffVisuals=new Map();this.hits=[];this.lastTime=0;this.guideRect=null;this.animator=new CharacterAnimator();this.characterModel=new CharacterModel(this.ctx);this.previousPatients=new Map();this.previousStaff=new Map();this.snapshotGame=null;
   new ResizeObserver(()=>this.resize()).observe(canvas);this.resize();
   canvas.addEventListener('contextmenu',e=>e.preventDefault());
   canvas.addEventListener('pointerdown',e=>{canvas.focus();this.pointer={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);if(e.button===2||e.button===1){this.panning=true;return;}const pos=this.tile(e);if(this.buildType){this.drag={start:pos,end:pos};}else this.down=pos;});
@@ -31,8 +31,8 @@ export class Renderer{
  furniture(r,time=0){for(const o of roomObjects(r)){
   const {x,y,w,h,z,kind}=o,c=this.ctx;
   if(kind==='door'){
-   const nearStaff=[...this.staffVisuals.values()].some(p=>Math.hypot(p.x+.5-x-.5,p.y+.5-y)<1.2&&p.path.length);
-   this.visualDoors??=new Map();const old=this.visualDoors.get(r.id)??r.doorOpen,desired=nearStaff?1:r.doorOpen,open=old+Math.sign(desired-old)*Math.min(Math.abs(desired-old),Math.max(0,time-this.lastTime)*5);this.visualDoors.set(r.id,open);
+
+   this.visualDoors??=new Map();const old=this.visualDoors.get(r.id)??r.doorOpen,desired=r.doorOpen,open=old+Math.sign(desired-old)*Math.min(Math.abs(desired-old),Math.max(0,time-this.lastTime)*5);this.visualDoors.set(r.id,open);
    const angle=open*Math.PI*.47,xx=x+Math.cos(angle)*.92,yy=y+Math.sin(angle)*.92*(r.y<8?-1:1);
    this.box(x-.07,y-.05,.09,.18,1.14,'#e9dec1');this.box(x+.96,y-.05,.09,.18,1.14,'#e9dec1');
    this.poly([this.project(x,y,.04),this.project(xx,yy,.04),this.project(xx,yy,1.07),this.project(x,y,1.07)],'#82b9ad','#507f74');
@@ -85,7 +85,7 @@ export class Renderer{
  }
  duck(x,y,size,tilt=0){const c=this.ctx;c.save();c.translate(x,y);c.rotate(tilt);this.ellipse(0,0,size*.48,size*.3,'#ffcf63');this.ellipse(size*.19,-size*.28,size*.27,size*.26,'#ffdf79');this.ellipse(size*.45,-size*.22,size*.16,size*.08,'#e99951');this.ellipse(size*.25,-size*.33,size*.035,size*.043,'#4c5350');this.ellipse(-size*.12,size*.01,size*.2,size*.13,'#efb74e');c.restore();}
  particles(x,y,time,color,glyph){const c=this.ctx;c.fillStyle=color;c.font=`bold ${Math.max(12,this.tw*.26)}px sans-serif`;for(let i=0;i<3;i++){const phase=(time*.7+i/3)%1;c.globalAlpha=1-phase;c.fillText(glyph,x+Math.sin(i*4+time)*this.tw*.2,y-phase*this.tw*.7);}c.globalAlpha=1;}
- captureStep(game){this.snapshotGame=game;this.previousPatients=new Map(game.patients.map(p=>[p.id,{x:p.x,y:p.y}]));}
+ captureStep(game){this.snapshotGame=game;this.previousStaff=new Map(game.staff.map(s=>[s.id,{x:s.x,y:s.y}]));this.previousPatients=new Map(game.patients.map(p=>[p.id,{x:p.x,y:p.y}]));}
  person(person,staff=false,time=0){
   const c=this.ctx,p=this.project(person.x+.5,person.y+.5),pose=this.animator.update(person,time);
   this.ellipse(p.x,p.y+this.tw*.025,this.tw*.145,this.tw*.06,'#24463c27');
@@ -106,30 +106,15 @@ export class Renderer{
   else if(kind==='dream'){dot(-.2,0,.15,'#c4b2d9');dot(0,-.09,.23,'#c4b2d9');dot(.23,0,.16,'#c4b2d9');dot(-.2,.25,.045,'#c4b2d9');}
   else{c.fillStyle='#86b3a1';c.fillRect(-.1,-.34,.2,.68);c.fillRect(-.34,-.1,.68,.2);}c.restore();
  }
- staffActor(s,game,time){
-  const room=game.room(s.roomId),lounge=game.rooms.find(r=>r.type==='lounge');this.loungeSeats??=new Map();
-  for(const [id,seat] of this.loungeSeats)if(!game.staff.some(v=>v.id===id&&v.resting)||seat.roomId!==lounge?.id)this.loungeSeats.delete(id);
-  if(s.resting&&lounge&&!this.loungeSeats.has(s.id)){const capacity=Math.max(1,Math.floor((lounge.w-1)/.8));for(let i=0;i<capacity;i++)if(![...this.loungeSeats.values()].some(seat=>seat.index===i)){this.loungeSeats.set(s.id,{roomId:lounge.id,index:i});break;}}
-  const seatIndex=this.loungeSeats.get(s.id)?.index,hasLoungeSeat=seatIndex!==undefined;let target,destinationRoom,signature;
-  if(s.resting&&hasLoungeSeat){target={x:lounge.x+.45+seatIndex*.8,y:lounge.y+.4};destinationRoom=lounge;signature='rest'+lounge.id+':'+seatIndex;}
-  else if(room&&!s.resting){target=room.type==='reception'?{x:room.x+room.w*.5-.5,y:room.y+.1}:{x:room.x+room.w*.75-.5,y:room.y+.6};destinationRoom=room;signature='room'+room.id;}
-  else{const points=[{x:4,y:7},{x:10,y:7},{x:19,y:8},{x:12,y:14},{x:12,y:16}].filter(p=>!game.occupied(p.x,p.y));const stop=Math.floor(time/7+s.id)%points.length;target=points[stop]||{x:12,y:16};signature='walk'+stop;}
-  signature+='|'+this.layoutKey;
-  let v=this.staffVisuals.get(s.id);if(!v){const start=this.initializingActors?target:{x:12,y:16};v={...start,path:[],signature:null};this.staffVisuals.set(s.id,v);}
-  if(v.signature!==signature){
-   if(Math.hypot(v.x-target.x,v.y-target.y)<.01)v.path=[];
-   else{const door=destinationRoom?game.door(destinationRoom):target,path=game.corridorPath(v,door);v.path=path===null?[]:[...path,...(destinationRoom?game.enterPath(destinationRoom,target):[])];}
-   v.signature=signature;
-  }
-  let distance=Math.max(0,time-this.lastTime)*2.8,moved=0;
-  while(v.path.length&&distance>0){const q=v.path[0],dx=q.x-v.x,dy=q.y-v.y,d=Math.hypot(dx,dy),step=Math.min(distance,d);if(d<=distance){v.x=q.x;v.y=q.y;v.path.shift();}else{v.x+=dx/d*distance;v.y+=dy/d*distance;}distance-=step;moved+=step;}
-  const patient=game.patients.find(p=>p.id===room?.patientId),working=patient?.state==='service',state=v.path.length?'travel':s.resting?'resting':s.role==='janitor'?'cleaning':working?'working':'idle';
-  const lookYaw=v.path.length?undefined:s.resting||room?.type==='reception'?0:room?Math.atan2(game.servicePoint(room).x-v.x,game.servicePoint(room).y-v.y):undefined;
-  return {...s,x:v.x,y:v.y,movedDistance:moved,lookYaw,state,hasSeat:!!destinationRoom&&(s.resting||s.role==='receptionist'),staff:true};
+ staffActor(s,game,time,alpha=1){
+  const r=game.room(s.roomId),previous=this.snapshotGame===game?this.previousStaff.get(s.id):null;
+  const state=['travelWork','travelBreak'].includes(s.state)?'travel':s.state==='break'?'resting':s.state==='cleaning'?'cleaning':game.staffReady(s)&&(game.patients.some(p=>p.id===r?.patientId&&p.state==='service')||r?.type==='lab'&&game.project)?'working':'idle';
+  const lookYaw=s.path.length?undefined:s.state==='break'||r?.type==='reception'?0:r?Math.atan2(game.servicePoint(r).x-s.x,game.servicePoint(r).y-s.y):undefined;
+  return {...s,x:previous?mix(previous.x,s.x,alpha):s.x,y:previous?mix(previous.y,s.y,alpha):s.y,state,lookYaw,hasSeat:s.state==='break'?s.breakSeatIndex!==null:game.staffReady(s)&&s.role==='receptionist',staff:true};
  }
 
  label(r){const c=this.ctx;const p=this.project(r.x+r.w/2,r.y+r.h/2,.15);const size=Math.max(10,Math.min(13,this.tw*.34));const name=tr(ROOMS[r.type].name,this.lang)+(ROOMS[r.type].role?' · '+r.id:'')+(r.type==='waiting'?' · '+this.game.patients.filter(p=>p.seatRoom===r.id).length+'/'+this.game.seats(r).length:'');c.font=`700 ${size}px "Trebuchet MS", sans-serif`;const width=c.measureText(name).width+20;const yy=p.y+this.tw*1.0;c.fillStyle='#fffff4ed';c.beginPath();c.roundRect(p.x-width/2,yy,width,25,7);c.fill();c.fillStyle='#304e46';c.textAlign='center';c.fillText(name,p.x,yy+17);c.textAlign='left';
-  if(ROOMS[r.type].role){const s=this.game.staff.find(s=>s.id===r.staffId);const color=!s?'#d68153':s.resting?'#d4a44f':'#62988c';this.ellipse(p.x+width/2-1,yy-1,4,4,color);}
+  if(ROOMS[r.type].role){const s=this.game.staff.find(s=>s.id===r.staffId);const color=!s?'#d68153':!this.game.staffReady(s)?'#d4a44f':'#62988c';this.ellipse(p.x+width/2-1,yy-1,4,4,color);}
   if(r.patientId){const width=36;const pp=this.project(r.x+r.w/2,r.y+r.h/2,.2);c.fillStyle='#274a4440';c.fillRect(pp.x-18,yy+29,width,4);c.fillStyle='#346f5e';c.fillRect(pp.x-18,yy+29,width*Math.min(1,r.progress/ROOMS[r.type].time),4);}
   const q=this.game.queue(r);if(q){const pp=this.project(r.x+r.w/2,r.y+r.h+.4);c.font='bold 11px sans-serif';c.fillStyle='#376156';c.fillText(`${q} ↳`,pp.x+6,pp.y+5);}
  }
@@ -146,7 +131,7 @@ export class Renderer{
    // Low front partitions leave all action visible. The real door opens toward the central corridor.
    const d=game.door(r);for(let x=r.x;x<r.x+r.w;x++)if(!(r.y<8&&x===d.x))this.box(x,r.y+r.h-.12,1,.12,.27,shade(col,3));this.box(r.x+r.w-.12,r.y,.12,r.h,.27,shade(col,-5));
    this.furniture(r,time);if(this.selected?.type==='room'&&this.selected.id===r.id){const pts=[this.project(r.x,r.y,.1),this.project(r.x+r.w,r.y,.1),this.project(r.x+r.w,r.y+r.h,.1),this.project(r.x,r.y+r.h,.1)];c.beginPath();pts.forEach((p,i)=>i?c.lineTo(p.x,p.y):c.moveTo(p.x,p.y));c.closePath();c.strokeStyle='#fff7bc';c.lineWidth=3;c.stroke();}}
-  const people=game.patients.map(p=>{const previous=this.snapshotGame===game?this.previousPatients.get(p.id):null,r=game.room(p.targetRoom),lookYaw=p.state==='seated'?0:p.state==='service'&&r?Math.atan2(r.x+1.05-p.x,r.y+1.05-p.y):undefined;return {...p,x:previous?mix(previous.x,p.x,alpha):p.x,y:previous?mix(previous.y,p.y,alpha):p.y,staff:false,lookYaw};});for(const staff of game.staff)people.push(this.staffActor(staff,game,time));
+  const people=game.patients.map(p=>{const previous=this.snapshotGame===game?this.previousPatients.get(p.id):null,r=game.room(p.targetRoom),lookYaw=p.state==='seated'?0:p.state==='service'&&r?Math.atan2(r.x+1.05-p.x,r.y+1.05-p.y):undefined;return {...p,x:previous?mix(previous.x,p.x,alpha):p.x,y:previous?mix(previous.y,p.y,alpha):p.y,staff:false,lookYaw};});for(const staff of game.staff)people.push(this.staffActor(staff,game,time,alpha));
   for(const p of people.sort((a,b)=>(a.x+a.y)-(b.x+b.y)))this.person(p,p.staff,time);
   for(const r of game.rooms)this.label(r);
   if(this.guideRect&&!this.buildType){const r=this.guideRect;this.tileFace(r.x,r.y,r.w,r.h,.06,'#e6bc5b25','#daa548');const p=this.project(r.x+r.w/2,r.y+r.h/2,.12);c.font='600 13px sans-serif';c.fillStyle='#a47c30';c.textAlign='center';c.fillText(tr(ROOMS[r.type].name,this.lang)+' +',p.x,p.y);c.textAlign='left';}
