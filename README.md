@@ -8,6 +8,8 @@ A cute, original hospital and specialty-practice management comedy game, with a 
 
 Every new hospital starts with **empty floor, no staff, no patients and $50,000**. Place rooms, hire their staff and open the clinic when reception, diagnosis and pharmacy are ready.
 
+Each visit first shows that empty floor with a short bilingual introduction. Choose **Start step by step** to build the first reception, or explicitly **Continue saved clinic** to load an existing hospital. Previewing the introduction, changing language, opening help and leaving the page never overwrite the saved clinic. A fresh start replaces an existing save only after confirmation; exporting from the introduction exports that existing save. Story and free play also begin empty and show a short setup briefing.
+
 - **Guided tutorial:** Bea guides seventeen concrete steps: build and staff reception, diagnosis and pharmacy; build a real waiting area; open the clinic; read a personal patient chart; treat patients; provide a lounge, restrooms and maintenance; upgrade busy departments; earn **$100,000 actual profit in a completed financial year**. Suggested floor areas and one-click placement help beginners, while manual room drawing stays available.
 - **Story 1 — A practice of your own:** establish a working community practice and reach treatment and reputation goals.
 - **Story 2 — Head in the clouds:** develop a daydream specialty practice, complete twelve successful therapy cases and research better bedside manner.

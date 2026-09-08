@@ -24,3 +24,18 @@ Object.assign(strings.de,{"compareApplicants": "Bewerber vergleichen", "recruitI
 
 Object.assign(strings.en,{credits:'Original cast and world. Portraits and character concepts created with OpenArt; articulated figures created for this game. No affiliation with any television series or existing game.'});
 Object.assign(strings.de,{credits:'Eigenständige Figuren und Spielwelt. Porträts und Figurenentwürfe mit OpenArt erstellt; Gelenkfiguren für dieses Spiel entwickelt. Keine Verbindung zu einer Fernsehserie oder einem bestehenden Spiel.'});
+
+Object.assign(strings.en,{
+ emptyStartTitle:'Your clinic starts here.',emptyStartText:'An empty floor and $50,000. No rooms, staff or patients yet. Bea will guide you through the first steps. Even the coffee machine is still a dream.',
+ startStep1:'Build reception',startStep1Text:'Place your first room on the marked floor, or draw it yourself.',
+ startStep2:'Choose your team',startStep2Text:'Hire a receptionist, then build and staff diagnosis and the pharmacy. Add a waiting area.',
+ startStep3:'Open when you are ready',startStep3Text:'Only then do patients arrive and the calendar and monthly bills begin.',
+ startGoal:'Tutorial goal: finish a year with $100,000 profit after all costs.',startGuided:'Start step by step',otherModes:'Story or free play',savedClinic:'Your saved clinic',resumeClinic:'Continue saved clinic',startFloorHint:'Take your time. No patients or monthly bills until you open the clinic.',startBuilding:'Start building',unreadableStartSave:'Your saved clinic could not be loaded. It has been kept; you can export it before starting again.',confirmNewText:'Starting a new hospital replaces your current saved clinic. You can cancel and export your save first.'
+});
+Object.assign(strings.de,{
+ emptyStartTitle:'Hier beginnt deine Klinik.',emptyStartText:'Leere Fläche und 50.000 $. Noch keine Räume, Mitarbeiter oder Patienten. Bea führt dich durch die ersten Schritte. Selbst die Kaffeemaschine ist noch Zukunftsmusik.',
+ startStep1:'Baue die Rezeption',startStep1Text:'Setze deinen ersten Raum auf die markierte Fläche oder zeichne ihn selbst.',
+ startStep2:'Wähle dein Team',startStep2Text:'Stelle eine Empfangskraft ein. Baue und besetze danach Diagnostik und Apotheke und ergänze einen Wartebereich.',
+ startStep3:'Öffne, wenn du bereit bist',startStep3Text:'Erst dann kommen Patienten, der Kalender läuft und monatliche Rechnungen werden fällig.',
+ startGoal:'Tutorialziel: Schließe ein Jahr mit 100.000 $ Gewinn nach allen Kosten ab.',startGuided:'Schritt für Schritt starten',otherModes:'Story oder freies Spiel',savedClinic:'Deine gespeicherte Klinik',resumeClinic:'Gespeicherte Klinik fortsetzen',startFloorHint:'Plane in Ruhe. Bis zur Eröffnung kommen keine Patienten und es fallen keine Monatsrechnungen an.',startBuilding:'Mit dem Bau beginnen',unreadableStartSave:'Deine gespeicherte Klinik konnte nicht geladen werden. Sie bleibt erhalten; du kannst sie vor einem Neustart exportieren.',confirmNewText:'Eine neue Klinik ersetzt deine aktuell gespeicherte Klinik. Du kannst abbrechen und deinen Spielstand vorher exportieren.'
+});
