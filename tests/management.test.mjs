@@ -1,11 +1,11 @@
-import {furnishedRoom} from './helpers.mjs';
+import {furnishedRoom,hireAndPlace,deployStaff} from './helpers.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Game} from '../src/game.js';
 import {GUIDE} from '../src/tutorial.js';
 import {EVENTS} from '../src/content.js';
 function tick(g,n){for(let i=0;i<n*20;i++){if(g.event){const ev=EVENTS.find(e=>e.id===g.event);g.resolveEvent(Math.max(0,ev.choices.findIndex(c=>c.cost===0&&c.effect!=='mafiaLoan')));}g.update(.05);}}
-function setup(){const g=new Game({seed:42});for(const s of GUIDE.slice(0,7)){if(s.room)assert.ok(furnishedRoom(g,s.room,s.rect).room);if(s.cast)assert.ok(g.hire(s.cast).staff);}g.openClinic();g.arrivalTimer=99999;g.nextEvent=99999;return g;}
+function setup(){const g=new Game({seed:42});for(const s of GUIDE.slice(0,7)){if(s.room)assert.ok(furnishedRoom(g,s.room,s.rect).room);if(s.cast)assert.ok(hireAndPlace(g,s.cast).staff);}g.openClinic();g.arrivalTimer=99999;g.nextEvent=99999;return g;}
 test('a busy clinic reserves unique seats, keeps overflow moving and gives seated patients comfort',()=>{
  const g=setup(),reception=g.rooms.find(r=>r.type==='reception');const receptionist=g.staff.find(s=>s.id===reception.staffId);receptionist.fatigue=85;g.requestBreak(receptionist.id);
  for(let i=0;i<10;i++)g.spawnPatient('jitters');tick(g,18);

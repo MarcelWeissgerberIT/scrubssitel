@@ -8,20 +8,83 @@ import {sceneLayers} from './scene.js';
 import {drawRoomObject} from './room-art.js';
 const shade=(color,amount)=>{let values;if(color.startsWith('#')){const n=parseInt(color.slice(1),16);values=[n>>16,(n>>8)&255,n&255];}else values=(color.match(/[\d.]+/g)||[0,0,0]).slice(0,3).map(Number);return `rgb(${values.map(n=>Math.max(0,Math.min(255,Math.round(n+amount)))).join(',')})`;};
 export class Renderer{
- constructor(canvas,options){this.canvas=canvas;this.ctx=canvas.getContext('2d');this.options=options;this.zoom=1;this.pan={x:0,y:0};this.hover=null;this.drag=null;this.pointer=null;this.keyboard={x:3,y:11};this.selected=null;this.lang='en';this.buildType=null;this.game=null;this.staffVisuals=new Map();this.hits=[];this.lastTime=0;this.guideRect=null;this.animator=new CharacterAnimator();this.characterModel=new CharacterModel(this.ctx);this.previousPatients=new Map();this.previousStaff=new Map();this.snapshotGame=null;this.editor=null;
+ constructor(canvas,options){this.canvas=canvas;this.ctx=canvas.getContext('2d');this.options=options;this.zoom=1;this.pan={x:0,y:0};this.hover=null;this.drag=null;this.pointer=null;this.keyboard={x:3,y:11};this.selected=null;this.lang='en';this.buildType=null;this.game=null;this.staffVisuals=new Map();this.hits=[];this.lastTime=0;this.guideRect=null;this.animator=new CharacterAnimator();this.characterModel=new CharacterModel(this.ctx);this.previousPatients=new Map();this.previousStaff=new Map();this.snapshotGame=null;this.editor=null;this.carriedStaffId=null;this.staffPickCandidate=null;this.activePointerId=null;
   new ResizeObserver(()=>this.resize()).observe(canvas);this.resize();
-  canvas.addEventListener('contextmenu',e=>e.preventDefault());
-  canvas.addEventListener('pointerdown',e=>{canvas.focus();this.pointer={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);if(e.button===2||e.button===1){this.panning=true;return;}this.updateFurnitureHover(e);const pos=this.tile(e);if(this.buildType&&!this.editor){this.drag={start:pos,end:pos};}else this.down=pos;});
-  canvas.addEventListener('pointermove',e=>{if(this.panning&&this.pointer){this.pan.x+=e.clientX-this.pointer.x;this.pan.y+=e.clientY-this.pointer.y;}this.pointer={x:e.clientX,y:e.clientY};this.hover=this.tile(e);if(this.drag)this.drag.end=this.hover;if(!this.panning)this.updateFurnitureHover(e);});
-  canvas.addEventListener('pointerup',e=>{if(this.panning){this.panning=false;this.down=null;return;}if(this.editor?.tool&&this.down){this.updateFurnitureHover(e);this.options.onFurniturePlace?.({...this.editor.tool});}else if(this.drag){const rect=this.rectangle();this.options.onBuild(this.buildType,rect);this.drag=null;}else if(this.down){const pos=this.tile(e);if(Math.abs(pos.x-this.down.x)+Math.abs(pos.y-this.down.y)<2)this.selectAt(pos,e);}this.down=null;});
-  canvas.addEventListener('pointercancel',()=>{this.panning=false;this.drag=null;this.down=null;});
+  canvas.addEventListener('contextmenu',e=>{e.preventDefault();if(this.carriedStaffId!==null)this.cancelStaffCarry();});
+  canvas.addEventListener('pointerdown',e=>this.pointerDown(e));
+  canvas.addEventListener('pointermove',e=>this.pointerMove(e));
+  canvas.addEventListener('pointerup',e=>this.pointerUp(e));
+  canvas.addEventListener('pointercancel',e=>{if(this.activePointerId===null||e.pointerId===this.activePointerId){this.clearPointer();this.cancelStaffCarry();}});
+  canvas.addEventListener('lostpointercapture',e=>{if(e.pointerId===this.activePointerId){this.clearPointer();this.cancelStaffCarry();}});
   canvas.addEventListener('wheel',e=>{e.preventDefault();this.setZoom(this.zoom+(e.deltaY<0?.1:-.1));},{passive:false});
-  canvas.addEventListener('keydown',e=>{const dirs={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};if(dirs[e.key]){e.preventDefault();const [x,y]=dirs[e.key];if(this.editor?.tool){this.editor.tool.x=Math.round((this.editor.tool.x+x*.25)*4)/4;this.editor.tool.y=Math.round((this.editor.tool.y+y*.25)*4)/4;if(FURNITURE[this.editor.tool.kind].wall){if(this.editor.tool.rotation===3)this.editor.tool.x=0;else this.editor.tool.y=0;}}else if(this.buildType){this.keyboard.x=Math.max(1,Math.min(22,this.keyboard.x+x));this.keyboard.y=Math.max(1,Math.min(16,this.keyboard.y+y));this.hover={...this.keyboard};if(this.drag)this.drag.end={...this.keyboard};}else{this.pan.x-=x*25;this.pan.y-=y*25;}}if(e.key==='Enter'){if(this.editor?.tool){e.preventDefault();this.options.onFurniturePlace?.({...this.editor.tool});}else if(this.buildType){e.preventDefault();if(this.drag){this.options.onBuild(this.buildType,this.rectangle());this.drag=null;}else this.drag={start:{...this.keyboard},end:{...this.keyboard}};}}});
+  canvas.addEventListener('keydown',e=>{if(this.carriedStaffId!==null){if(e.key==='Escape'){e.preventDefault();e.stopPropagation();this.cancelStaffCarry();}else if(e.key==='Enter'){e.preventDefault();e.stopPropagation();this.dropCarriedStaff();}return;}const dirs={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};if(dirs[e.key]){e.preventDefault();const [x,y]=dirs[e.key];if(this.editor?.tool){this.editor.tool.x=Math.round((this.editor.tool.x+x*.25)*4)/4;this.editor.tool.y=Math.round((this.editor.tool.y+y*.25)*4)/4;if(FURNITURE[this.editor.tool.kind].wall){if(this.editor.tool.rotation===3)this.editor.tool.x=0;else this.editor.tool.y=0;}}else if(this.buildType){this.keyboard.x=Math.max(1,Math.min(22,this.keyboard.x+x));this.keyboard.y=Math.max(1,Math.min(16,this.keyboard.y+y));this.hover={...this.keyboard};if(this.drag)this.drag.end={...this.keyboard};}else{this.pan.x-=x*25;this.pan.y-=y*25;}}if(e.key==='Enter'){if(this.editor?.tool){e.preventDefault();this.options.onFurniturePlace?.({...this.editor.tool});}else if(this.buildType){e.preventDefault();if(this.drag){this.options.onBuild(this.buildType,this.rectangle());this.drag=null;}else this.drag={start:{...this.keyboard},end:{...this.keyboard}};}}});
+ }
+ // A pending press still selects normally; only an intentional drag picks up staff.
+ pointerDown(e){
+  if(e.isPrimary===false||this.activePointerId!==null)return;
+  this.canvas.focus();this.pointer={x:e.clientX,y:e.clientY};
+  if(this.carriedStaffId!==null&&e.button===2){e.preventDefault();this.cancelStaffCarry();return;}
+  this.activePointerId=e.pointerId;this.canvas.setPointerCapture?.(e.pointerId);
+  if(e.button===2||e.button===1){if(this.carriedStaffId===null)this.panning=true;return;}
+  if(this.carriedStaffId!==null){this.down=this.tile(e);return;}
+  this.updateFurnitureHover(e);const pos=this.tile(e);
+  if(this.buildType&&!this.editor)this.drag={start:pos,end:pos};
+  else{this.down=pos;if(!this.editor){const hit=this.hitAt(e);if(hit?.type==='staff')this.staffPickCandidate={id:hit.id,x:e.clientX,y:e.clientY,threshold:e.pointerType==='touch'?9:6};}}
+  this.updatePointerCursor(e);
+ }
+ pointerMove(e){
+  if(e.isPrimary===false||this.activePointerId!==null&&e.pointerId!==this.activePointerId)return;
+  if(this.panning&&this.pointer){this.pan.x+=e.clientX-this.pointer.x;this.pan.y+=e.clientY-this.pointer.y;}
+  this.pointer={x:e.clientX,y:e.clientY};this.hover=this.tile(e);
+  const candidate=this.staffPickCandidate;
+  if(candidate&&Math.hypot(e.clientX-candidate.x,e.clientY-candidate.y)>=candidate.threshold){this.staffPickCandidate=null;this.pickUpStaff(candidate.id);}
+  if(this.carriedStaffId!==null){this.canvas.style.cursor='grabbing';return;}
+  if(this.drag)this.drag.end=this.hover;if(!this.panning)this.updateFurnitureHover(e);this.updatePointerCursor(e);
+ }
+ pointerUp(e){
+  if(e.pointerId!==this.activePointerId)return;
+  this.pointer={x:e.clientX,y:e.clientY};
+  if(this.carriedStaffId!==null){if(e.button!==1&&e.button!==2)this.dropCarriedStaff();this.clearPointer();return;}
+  if(this.panning){this.clearPointer();return;}
+  if(this.editor?.tool&&this.down){this.updateFurnitureHover(e);this.options.onFurniturePlace?.({...this.editor.tool});}
+  else if(this.drag){const rect=this.rectangle();this.options.onBuild(this.buildType,rect);}
+  else if(this.down){const pos=this.tile(e);if(Math.abs(pos.x-this.down.x)+Math.abs(pos.y-this.down.y)<2)this.selectAt(pos,e);}
+  this.clearPointer();this.updatePointerCursor(e);
+ }
+ clearPointer(){const id=this.activePointerId;this.activePointerId=null;this.panning=false;this.drag=null;this.down=null;this.staffPickCandidate=null;if(id!==null)try{this.canvas.releasePointerCapture?.(id);}catch{}}
+ updatePointerCursor(event){if(this.carriedStaffId!==null){this.canvas.style.cursor='grabbing';return;}if(this.editor||this.buildType){this.canvas.style.cursor=this.editor?.tool||this.buildType?'crosshair':'';return;}const hit=event&&this.hitAt(event);this.canvas.style.cursor=hit?.type==='staff'&&this.game?.canPickUpStaff?.(hit.id)===null?'grab':'';}
+ pickUpStaff(id){
+  if(this.editor||this.buildType||this.carriedStaffId!==null||!this.game)return false;
+  const error=this.game.canPickUpStaff?.(id);if(error!==null){if(error)this.options.onStaffError?.(error);return false;}
+  if(this.options.onStaffPick?.(id)!==true)return false;
+  this.carriedStaffId=id;this.staffCarryStarted=performance.now();this.drag=null;this.down=null;this.staffPickCandidate=null;
+  const bounds=this.canvas.getBoundingClientRect();if(!this.pointer||this.pointer.x<bounds.left||this.pointer.x>bounds.left+bounds.width||this.pointer.y<bounds.top||this.pointer.y>bounds.top+bounds.height)this.pointer={x:bounds.left+this.w/2,y:bounds.top+this.h/2};
+  this.canvas.style.cursor='grabbing';return true;
+ }
+ clearStaffCarry(){const id=this.carriedStaffId;this.carriedStaffId=null;this.staffCarryStarted=null;this.animator.actors.delete(id);this.previousStaff.delete(id);this.clearPointer();this.canvas.style.cursor='';}
+ cancelStaffCarry(){if(this.carriedStaffId===null)return false;this.clearStaffCarry();this.options.onStaffCancel?.();return true;}
+ staffDropTarget(){
+  if(this.carriedStaffId===null||!this.pointer)return null;
+  const bounds=this.canvas.getBoundingClientRect(),inside=this.pointer.x>=bounds.left&&this.pointer.x<=bounds.left+bounds.width&&this.pointer.y>=bounds.top&&this.pointer.y<=bounds.top+bounds.height;
+  const floor=this.floorPoint({clientX:this.pointer.x,clientY:this.pointer.y}),point={x:floor.x-.5,y:floor.y-.5},room=this.game.rooms.find(r=>floor.x>=r.x&&floor.x<r.x+r.w&&floor.y>=r.y&&floor.y<r.y+r.h);
+  return {room,roomId:room?.id??null,point,error:inside?this.game.staffPlacement?.(this.carriedStaffId,room?.id??null,point)??null:'outside'};
+ }
+ dropCarriedStaff(){const target=this.staffDropTarget();if(!target)return false;if(target.error){this.options.onStaffError?.(target.error);return false;}if(this.options.onStaffDrop?.(this.carriedStaffId,target.roomId,target.point)!==true)return false;this.clearStaffCarry();return true;}
+ drawStaffCarry(time){
+  const staff=this.game.staff.find(s=>s.id===this.carriedStaffId),target=this.staffDropTarget();if(!staff||!target)return;
+  const c=this.ctx,valid=!target.error,color=valid?'#388a64':'#b65445',ground=this.project(target.point.x+.5,target.point.y+.5,.08),bounds=this.canvas.getBoundingClientRect();
+  if(target.room)this.tileFace(target.room.x+.04,target.room.y+.04,target.room.w-.08,target.room.h-.08,.08,valid?'#83c99538':'#e37b6a38',color);
+  this.ellipse(ground.x,ground.y,this.tw*.24,this.tw*.12,valid?'#8bd5ab99':'#e8978999');c.strokeStyle=color;c.lineWidth=2;c.beginPath();c.ellipse(ground.x,ground.y,this.tw*.24,this.tw*.12,0,0,Math.PI*2);c.stroke();
+  const elapsed=(performance.now()-this.staffCarryStarted)/1000,swing=Math.sin(elapsed*4)*.07,px=this.pointer.x-bounds.left,py=this.pointer.y-bounds.top,pose={yaw:this.animator.actors.get(staff.id)?.yaw??0,phase:elapsed*2,walk:.12,sit:0,work:0,celebrate:0,time:time+elapsed};
+  // The hand holds the collar while the complete articulated body hangs below it.
+  c.save();c.translate(px,py);c.rotate(swing);this.characterModel.draw({...staff,staff:true,state:'idle',hasSeat:false},pose,{x:0,y:this.tw*.80},this.tw);
+  c.translate(this.tw*.28,this.tw*.24);c.scale(-this.tw*.60,this.tw*.60);c.lineJoin='round';c.lineCap='round';c.fillStyle='#fff3d6';c.strokeStyle='#71634e';c.lineWidth=.027;
+  c.beginPath();c.moveTo(-.22,-.24);c.lineTo(-.20,-.46);c.quadraticCurveTo(-.13,-.51,-.09,-.44);c.lineTo(-.07,-.29);c.lineTo(.16,-.26);c.quadraticCurveTo(.29,-.22,.25,-.11);c.lineTo(.18,.03);c.quadraticCurveTo(.08,.11,-.06,.04);c.lineTo(-.13,-.06);c.quadraticCurveTo(-.26,-.06,-.22,-.24);c.closePath();c.fill();c.stroke();c.beginPath();c.moveTo(.01,-.22);c.lineTo(.15,-.19);c.moveTo(-.02,-.13);c.lineTo(.11,-.10);c.stroke();c.fillStyle='#8dafba';c.fillRect(-.24,-.47,.18,.09);c.restore();
  }
  resize(){const r=this.canvas.getBoundingClientRect();this.w=r.width;this.h=r.height;const d=Math.min(devicePixelRatio||1,2);this.canvas.width=r.width*d;this.canvas.height=r.height*d;this.ctx.setTransform(d,0,0,d,0,0);}
  setZoom(z){this.zoom=Math.max(.55,Math.min(1.9,z));}
  reset(){this.zoom=1;this.pan={x:0,y:0};if(this.editor)this.centerRoom(this.editor.roomId);}
- startEditor(roomId){this.zoom=Math.max(this.zoom,1.75);this.editor={roomId,itemId:null,tool:null};this.buildType=null;this.drag=null;this.down=null;this.centerRoom(roomId);}
+ startEditor(roomId){this.cancelStaffCarry();this.zoom=Math.max(this.zoom,1.75);this.editor={roomId,itemId:null,tool:null};this.buildType=null;this.drag=null;this.down=null;this.centerRoom(roomId);}
  centerRoom(roomId){const room=this.game?.room(roomId);if(!room)return;this.metrics();const center=this.project(room.x+room.w/2,room.y+room.h/2);const compact=this.w<700,available=compact?this.w:Math.max(200,this.w-350);this.pan.x+=available/2-center.x;this.pan.y+=(compact?Math.max(150,(this.h-285)/2):this.h/2+25)-center.y;}
  setFurnitureTool(kind,item=null){if(!this.editor||!FURNITURE[kind])return;const room=this.game?.room(this.editor.roomId);this.editor.tool=item?{...item}:{kind,x:.5,y:.5,rotation:0};this.editor.itemId=item?.id??null;if(room&&!item){const f=FURNITURE[kind];this.editor.tool.x=Math.round((room.w-f.w)/2*4)/4;this.editor.tool.y=f.wall?0:Math.round((room.h-f.h)/2*4)/4;}}
  cancelFurnitureTool(){if(this.editor)this.editor.tool=null;}
@@ -37,7 +100,8 @@ export class Renderer{
  project(x,y,z=0){return {x:this.ox+(x-y)*this.tw/2,y:this.oy+(x+y)*this.th/2-z*this.tw};}
  tile(e){const r=this.canvas.getBoundingClientRect(),x=e.clientX-r.left-this.ox,y=e.clientY-r.top-this.oy;return {x:Math.floor(x/this.tw+y/this.th),y:Math.floor(y/this.th-x/this.tw)};}
  rectangle(){const {start:a,end:b}=this.drag;return {x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.abs(a.x-b.x)+1,h:Math.abs(a.y-b.y)+1};}
- selectAt(pos,event){if(event){const bounds=this.canvas.getBoundingClientRect(),x=event.clientX-bounds.left,y=event.clientY-bounds.top;const hit=this.hits.slice().reverse().find(h=>x>=h.x&&x<=h.x+h.w&&y>=h.y&&y<=h.y+h.h&&this.visibleHit(h,x,y));if(hit){this.options.onSelect(hit.type,hit.id);return;}}const p=this.game.patients.filter(p=>Math.abs(p.x-pos.x)<.8&&Math.abs(p.y-pos.y)<.8).at(-1);if(p)this.options.onSelect('patient',p.id);else {const r=this.game.rooms.find(r=>pos.x>=r.x&&pos.x<r.x+r.w&&pos.y>=r.y&&pos.y<r.y+r.h);this.options.onSelect(r?'room':null,r?.id);}}
+ hitAt(event){const bounds=this.canvas.getBoundingClientRect(),x=event.clientX-bounds.left,y=event.clientY-bounds.top;return this.hits.slice().reverse().find(h=>x>=h.x&&x<=h.x+h.w&&y>=h.y&&y<=h.y+h.h&&this.visibleHit(h,x,y));}
+ selectAt(pos,event){if(event){const hit=this.hitAt(event);if(hit){this.options.onSelect(hit.type,hit.id);return;}}const p=this.game.patients.filter(p=>Math.abs(p.x-pos.x)<.8&&Math.abs(p.y-pos.y)<.8).at(-1);if(p)this.options.onSelect('patient',p.id);else {const r=this.game.rooms.find(r=>pos.x>=r.x&&pos.x<r.x+r.w&&pos.y>=r.y&&pos.y<r.y+r.h);this.options.onSelect(r?'room':null,r?.id);}}
  // Test the painted silhouette only when clicked, without another per-frame render.
  visibleHit(hit,x,y){
   this.hitCanvas??=typeof OffscreenCanvas==='function'?new OffscreenCanvas(1,1):document.createElement('canvas');
@@ -104,7 +168,7 @@ export class Renderer{
   if(r.patientId){const width=36;const pp=this.project(r.x+r.w/2,r.y+r.h/2,.2);c.fillStyle='#274a4440';c.fillRect(pp.x-18,yy+29,width,4);c.fillStyle='#346f5e';c.fillRect(pp.x-18,yy+29,width*Math.min(1,r.progress/ROOMS[r.type].time),4);}
   const q=this.game.queue(r);if(q){const pp=this.project(r.x+r.w/2,r.y+r.h+.4);c.font='bold 11px sans-serif';c.fillStyle='#376156';c.fillText(`${q} ↳`,pp.x+6,pp.y+5);}
  }
- draw(game,time,alpha=1){this.initializingActors=this.game!==game;if(this.game!==game){this.animator.reset();this.visualDoors?.clear();this.loungeSeats?.clear();this.staffVisuals.clear();this.lastTime=time;this.drag=null;this.down=null;this.panning=false;}this.game=game;this.layoutKey=game.rooms.map(r=>r.id).join(",");this.metrics();const c=this.ctx;this.hits=[];c.clearRect(0,0,this.w,this.h);
+ draw(game,time,alpha=1){this.initializingActors=this.game!==game;if(this.game!==game){this.cancelStaffCarry();this.clearPointer();this.animator.reset();this.visualDoors?.clear();this.loungeSeats?.clear();this.staffVisuals.clear();this.lastTime=time;this.drag=null;this.down=null;this.panning=false;}this.game=game;if(this.carriedStaffId!==null&&!game.staff.some(s=>s.id===this.carriedStaffId))this.cancelStaffCarry();this.layoutKey=game.rooms.map(r=>r.id).join(",");this.metrics();const c=this.ctx;this.hits=[];c.clearRect(0,0,this.w,this.h);
   // The construction surface is actual game geometry, with a navigable tile grid.
   this.box(-.3,-.3,24.6,18.6,-.2,'#a4b7a1',-.65);this.tileFace(0,0,24,18,0,'#edf1f0');
   for(let y=0;y<18;y++)for(let x=0;x<24;x++){const corridor=y>=7&&y<=10||x>=11&&x<=14&&y>7;this.tileFace(x,y,1,1,.005,corridor?((x+y)%2?'#e4eeea':'#eff5f0'):((x+y)%2?'#eef2f3':'#f7f8f5'),'#ffffff26');}
@@ -117,7 +181,7 @@ export class Renderer{
    // Low front partitions leave all action visible. The real door opens toward the central corridor.
    const d=game.door(r);for(let x=r.x;x<r.x+r.w;x++)if(!(r.y<8&&x===d.x))this.box(x,r.y+r.h-.12,1,.12,.27,shade(col,3));this.box(r.x+r.w-.12,r.y,.12,r.h,.27,shade(col,-5));
    if(this.selected?.type==='room'&&this.selected.id===r.id){const pts=[this.project(r.x,r.y,.1),this.project(r.x+r.w,r.y,.1),this.project(r.x+r.w,r.y+r.h,.1),this.project(r.x,r.y+r.h,.1)];c.beginPath();pts.forEach((p,i)=>i?c.lineTo(p.x,p.y):c.moveTo(p.x,p.y));c.closePath();c.strokeStyle='#fff7bc';c.lineWidth=3;c.stroke();}}
-  const people=game.patients.map(p=>{const previous=this.snapshotGame===game?this.previousPatients.get(p.id):null,r=game.room(p.targetRoom),seatRoom=game.room(p.seatRoom),lookYaw=p.state==='seated'&&seatRoom?roomSeats(seatRoom)[p.seatIndex]?.lookYaw:p.state==='service'&&r?patientPoint(r)?.lookYaw:undefined;return {...p,x:previous?mix(previous.x,p.x,alpha):p.x,y:previous?mix(previous.y,p.y,alpha):p.y,staff:false,lookYaw};});for(const staff of game.staff)people.push(this.staffActor(staff,game,time,alpha));
+  const people=game.patients.map(p=>{const previous=this.snapshotGame===game?this.previousPatients.get(p.id):null,r=game.room(p.targetRoom),seatRoom=game.room(p.seatRoom),lookYaw=p.state==='seated'&&seatRoom?roomSeats(seatRoom)[p.seatIndex]?.lookYaw:p.state==='service'&&r?patientPoint(r)?.lookYaw:undefined;return {...p,x:previous?mix(previous.x,p.x,alpha):p.x,y:previous?mix(previous.y,p.y,alpha):p.y,staff:false,lookYaw};});for(const staff of game.staff)if(staff.id!==this.carriedStaffId)people.push(this.staffActor(staff,game,time,alpha));
   for(const layer of sceneLayers(game,people)){
    if(layer.kind==='object'){if(!(layer.room.id===this.editor?.roomId&&layer.object.furnitureId===this.editor?.tool?.id))this.furniture(layer.room,time,[layer.object]);}
    else if(layer.kind==='person')this.person(layer.person,layer.person.staff,time);
@@ -130,6 +194,7 @@ export class Renderer{
   if(this.editor)this.drawFurnitureEditor(time);
   if(this.guideRect&&!this.buildType){const r=this.guideRect;this.tileFace(r.x,r.y,r.w,r.h,.06,'#e6bc5b25','#daa548');const p=this.project(r.x+r.w/2,r.y+r.h/2,.12);c.font='600 13px sans-serif';c.fillStyle='#a47c30';c.textAlign='center';c.fillText(tr(ROOMS[r.type].name,this.lang)+' +',p.x,p.y);c.textAlign='left';}
   if(this.buildType){const rect=this.drag?this.rectangle():this.hover?{...this.hover,w:3,h:3}:null;if(rect){const valid=!game.placement(this.buildType,rect);this.tileFace(rect.x,rect.y,rect.w,rect.h,.08,valid?'#d5eb6a99':'#e77f7299','#ffffff');const p=this.project(rect.x+rect.w/2,rect.y+rect.h/2,.1);c.font='bold 14px sans-serif';c.fillStyle='#234740';c.textAlign='center';c.fillText(`${rect.w} × ${rect.h}`,p.x,p.y);c.textAlign='left';}}
-  this.animator.prune(people.map(p=>p.id));for(const id of this.staffVisuals.keys())if(!game.staff.some(s=>s.id===id))this.staffVisuals.delete(id);this.lastTime=time;
+  if(this.carriedStaffId!==null)this.drawStaffCarry(time);
+  this.animator.prune([...people.map(p=>p.id),...(this.carriedStaffId===null?[]:[this.carriedStaffId])]);for(const id of this.staffVisuals.keys())if(!game.staff.some(s=>s.id===id))this.staffVisuals.delete(id);this.lastTime=time;
  }
 }

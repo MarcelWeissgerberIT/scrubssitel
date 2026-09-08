@@ -77,10 +77,10 @@ export class CharacterModel{
   const bounds={left:Infinity,top:Infinity,right:-Infinity,bottom:-Infinity};
   const include=(x,y,rx=0,ry=rx)=>{bounds.left=Math.min(bounds.left,x-rx-1);bounds.right=Math.max(bounds.right,x+rx+1);bounds.top=Math.min(bounds.top,y-ry-1);bounds.bottom=Math.max(bounds.bottom,y+ry+1);};
   const project=v=>{const x=v[0]*co+v[1]*si,y=-v[0]*si+v[1]*co;return {x:origin.x+(x-y)*u*.5,y:origin.y+(x+y)*u*.255-v[2]*u,depth:(x+y)*.66+v[2]*.34};};
-  const sphere=(point,rx,ry,rz,fill,detail=0)=>{
+  const sphere=(point,rx,ry,rz,fill,detail=0,matte=1)=>{
    const p=project(point),width=Math.sqrt((rx*(co+si))**2+(ry*(si-co))**2)*u*.5,height=Math.sqrt((rx*(co-si)*.255)**2+(ry*(si+co)*.255)**2+rz*rz)*u;
    include(p.x,p.y,width,height);
-   commands.push({depth:p.depth+detail,draw:()=>{const gradient=c.createRadialGradient(p.x-width*.32,p.y-height*.43,0,p.x,p.y,Math.max(width,height)*1.12);gradient.addColorStop(0,color(fill,38));gradient.addColorStop(.48,color(fill,7));gradient.addColorStop(.82,fill);gradient.addColorStop(1,color(fill,-35));c.fillStyle=gradient;c.beginPath();c.ellipse(p.x,p.y,width,height,0,0,Math.PI*2);c.fill();}});
+   commands.push({depth:p.depth+detail,draw:()=>{const gradient=c.createRadialGradient(p.x-width*.32,p.y-height*.43,0,p.x,p.y,Math.max(width,height)*1.12);gradient.addColorStop(0,color(fill,38*matte));gradient.addColorStop(.48,color(fill,7*matte));gradient.addColorStop(.82,fill);gradient.addColorStop(1,color(fill,-35*matte));c.fillStyle=gradient;c.beginPath();c.ellipse(p.x,p.y,width,height,0,0,Math.PI*2);c.fill();}});
   };
   const bone=(from,to,radius,fill)=>{const p=project(from),q=project(to),dx=q.x-p.x,dy=q.y-p.y,length=Math.hypot(dx,dy)||1,width=radius*u*.72;
    include(p.x,p.y,width);include(q.x,q.y,width);
@@ -91,7 +91,7 @@ export class CharacterModel{
   const panel=(points,fill)=>{const pts=points.map(project);for(const p of pts)include(p.x,p.y);commands.push({depth:pts.reduce((sum,p)=>sum+p.depth,0)/pts.length+.015,draw:()=>{c.beginPath();pts.forEach((p,i)=>i?c.lineTo(p.x,p.y):c.moveTo(p.x,p.y));c.closePath();c.fillStyle=fill;c.fill();}});};
   // Single continuous silhouettes keep cloth and skin from reading as stacked
   // beads. The rig still supplies every foot, knee, elbow, hand and seat anchor.
-  const silhouette=(points,fill,depth,matte=1,projected=false)=>{
+  const silhouette=(points,fill,depth,matte=1,projected=false,lighting=null)=>{
    const pts=(projected?points:points.map(project)).sort(pointOrder);
    const half=reverse=>{const out=[];for(let i=reverse?pts.length-1:0;reverse?i>=0:i<pts.length;reverse?i--:i++){
     const p=pts[i];while(out.length>1){const a=out[out.length-2],b=out[out.length-1];if((b.x-a.x)*(p.y-a.y)-(b.y-a.y)*(p.x-a.x)>0)break;out.pop();}out.push(p);
@@ -101,10 +101,11 @@ export class CharacterModel{
    for(const p of hull){left=Math.min(left,p.x);right=Math.max(right,p.x);top=Math.min(top,p.y);bottom=Math.max(bottom,p.y);}
    include(left,top);include(right,bottom);
    commands.push({depth,draw:()=>{
-    const w=right-left,h=bottom-top,g=c.createRadialGradient(left+w*.29,top+h*.46,0,left+w*.50,top+h*.48,Math.max(w,h)*.61);g.addColorStop(0,color(fill,45*matte));g.addColorStop(.42,color(fill,20*matte));g.addColorStop(.73,fill);g.addColorStop(1,color(fill,-36*matte));
+    const light=lighting||{left,right,top,bottom},w=light.right-light.left,h=light.bottom-light.top,g=c.createRadialGradient(light.left+w*.29,light.top+h*.46,0,light.left+w*.50,light.top+h*.48,Math.max(w,h)*.61);g.addColorStop(0,color(fill,45*matte));g.addColorStop(.42,color(fill,20*matte));g.addColorStop(.73,fill);g.addColorStop(1,color(fill,-36*matte));
     c.fillStyle=g;c.beginPath();const last=hull.at(-1),first=hull[0];c.moveTo((last.x+first.x)/2,(last.y+first.y)/2);
     hull.forEach((p,i)=>{const q=hull[(i+1)%hull.length];c.quadraticCurveTo(p.x,p.y,(p.x+q.x)/2,(p.y+q.y)/2);});c.closePath();c.fill();
    }});
+   return hull;
   };
   const volume=(center,rings,fill,detail=0)=>{
    const points=[],circle=CIRCLES[tileWidth<70?0:1];
@@ -162,20 +163,22 @@ export class CharacterModel{
    const seam=cuff.map((v,i)=>v+(arm.shoulder[i]-v)*.04);
    line([[seam[0]-.027,seam[1]+.04,seam[2]],[seam[0]+.026,seam[1]+.04,seam[2]]],color(look.sleeve||look.shirt,24),.008,.015);
   }
-  // A single sculpted cheek/chin silhouette replaces the old overlapping balls.
+  // Rounded skull and cheek profiles meet at a soft chin, without a flat jaw
+  // ring. Facial features follow the same ellipsoidal surface and its tangent.
   const [hx,hy,hz]=[pose.head[0],pose.head[1],pose.head[2]+.07],headWidth=(look.headWidth||.235)*1.22;
-  volume([hx,hy,hz],[[-.214,.087,.10,.035],[-.178,headWidth*.66,.170,.025],[-.100,headWidth*.93,.219,.016],[.010,headWidth,.235],[.115,headWidth*.93,.207],[.198,headWidth*.66,.151],[.217,.08,.058]],look.skin);
+  volume([hx,hy,hz],[[-.225,.012,.014,.024],[-.202,headWidth*.38,.095,.026],[-.158,headWidth*.72,.165,.019],[-.083,headWidth*.97,.215,.009],[.005,headWidth,.235],[.086,headWidth*.97,.221],[.160,headWidth*.75,.170],[.210,headWidth*.40,.086],[.230,.008,.008]],look.skin);
   const front=si+co,sideView=co-si,visibleFace=front>.02;
   for(const side of [-1,1]){
    const ear=[side*headWidth*.96,hy-.002,hz-.038];
    volume(ear,[[-.052,.020,.031],[0,.045,.052],[.046,.028,.032]],look.skin);
-   if(side*sideView>-.2)curve([[ear[0]+side*.016,ear[1]+.038,ear[2]-.025],[ear[0]-side*.018,ear[1]+.055,ear[2]-.012],[ear[0]-side*.012,ear[1]+.051,ear[2]+.024],[ear[0]+side*.019,ear[1]+.030,ear[2]+.025]],color(look.skin,-27),.009,.009);
+   if(look.style==='bob')commands.at(-1).depth=Math.min(commands.at(-1).depth,project([hx,hy,hz]).depth+.015);
+   if(side*sideView>-.2){curve([[ear[0]+side*.016,ear[1]+.038,ear[2]-.025],[ear[0]-side*.018,ear[1]+.055,ear[2]-.012],[ear[0]-side*.012,ear[1]+.051,ear[2]+.024],[ear[0]+side*.019,ear[1]+.030,ear[2]+.025]],color(look.skin,-27),.009,.009);if(look.style==='bob')commands.at(-1).depth=Math.min(commands.at(-1).depth,project([hx,hy,hz]).depth+.016);}
   }
   const blinkPhase=(a.time+(portraitSeed(person)%100)*.037)%4.8,blink=!a.portrait&&blinkPhase>0&&blinkPhase<.10;
   for(const side of [-1,1]){
-   const ex=side*(look.eyeSpacing||.091)*1.17,ey=hy+.227-(ex/headWidth)**2*.058;
-   if(front*.86+side*sideView*.46<.12)continue;
-   const p=project([ex,ey,hz+.023]),px=project([ex+1,ey-ex*.8,hz+.023]);
+   const ex=side*(look.eyeSpacing||.091)*1.17,surfaceY=.235*Math.sqrt(1-(ex/headWidth)**2-(.023/.23)**2),ey=hy+surfaceY+.005,tangent=-.235*.235*ex/(headWidth*headWidth*surfaceY);
+   if(front-tangent*sideView<.09)continue;
+   const p=project([ex,ey,hz+.023]),px=project([ex+1,ey+tangent,hz+.023]);
    include(p.x,p.y,u*.085,u*.098);
    commands.push({depth:p.depth+.02,draw:()=>{
     c.save();c.transform(px.x-p.x,px.y-p.y,0,u,p.x,p.y);
@@ -187,7 +190,7 @@ export class CharacterModel{
     }
     c.beginPath();c.moveTo(-.060,.002);c.bezierCurveTo(-.044,blink?.008:-.066,.036,blink?.008:-.067,.060,.001);c.strokeStyle=color(look.hair,-9);c.lineWidth=.007;c.lineCap='round';c.stroke();
     c.beginPath();c.moveTo(-.044,-.063);c.bezierCurveTo(-.016,-.078,.024,-.076,.047,-.059);c.strokeStyle=look.hair;c.lineWidth=.012;c.stroke();
-    if(look.glasses){c.beginPath();c.roundRect(-.070,-.051,.14,.106,.037);c.strokeStyle='#3c514e';c.lineWidth=.010;c.stroke();}
+    if(look.glasses){c.beginPath();c.ellipse(0,-.001,.073,.064,0,0,Math.PI*2);c.strokeStyle='#3c514e';c.lineWidth=.010;c.stroke();}
     c.restore();
    }});
    const cheek=project([side*.164,hy+.209,hz-.065]);commands.push({depth:cheek.depth+.018,draw:()=>{c.save();c.globalAlpha=.16;c.fillStyle='#d97862';c.beginPath();c.ellipse(cheek.x,cheek.y,.030*u,.016*u,0,0,Math.PI*2);c.fill();c.restore();}});
@@ -204,60 +207,75 @@ export class CharacterModel{
    if(look.moustache)for(const side of [-1,1])ribbon([[0,hy+.263,hz-.068],[side*.037,hy+.260,hz-.077],[side*.070,hy+.240,hz-.064]],[.013,.020,.006],look.hair,.033);
    if(look.earring)for(const side of [-1,1])sphere([side*headWidth,hy+.025,hz-.092],.018,.015,.024,'#dfb55a',.020);
   }
-  // Hair is a continuous fitted cap, with swept tapered locks and sculpted
-  // ridges. The back and profile share the same volume as the front hairline.
-  const hairPoints=[],longHair=look.style==='bob',short=look.style==='bald';
+  // Hair follows a rounded scalp surface. Every lock begins inside that dome;
+  // no straight strips are allowed to project above the crown like teeth.
+  const longHair=look.style==='bob',short=look.style==='bald';
   if(!short){
-   const segments=tileWidth<70?14:28;
+   const segments=tileWidth<70?12:24,steps=tileWidth<70?4:6,hairPoints=[],crownPoints=[];
+   const curly=['curls','bun'].includes(look.style),crownHeight=curly?.237:.282;
+   const scalp=(theta,phi,lift=0)=>[hx+Math.cos(theta)*Math.sin(phi)*(headWidth+.014),hy-.019+Math.sin(theta)*Math.sin(phi)*.250,hz+Math.cos(phi)*crownHeight+lift];
+   const headDepth=project([hx,hy,hz]).depth,hairDepth=headDepth+.095;
    for(let i=0;i<segments;i++){
-    const angle=i*Math.PI*2/segments,sn=Math.sin(angle),cs=Math.cos(angle),lower=sn>0?.098+cs*.022+Math.sin(angle*3)*.010:longHair?-.159:-.084;
-    hairPoints.push([cs*headWidth*1.025,hy+sn*.228-.023,hz+lower]);
-    hairPoints.push([cs*headWidth*.99,hy+sn*.218-.035,hz+.164]);
-    hairPoints.push([cs*headWidth*.71,hy+sn*.157-.038,hz+.245]);
-    hairPoints.push([cs*.065,hy+sn*.048-.038,hz+.271]);
+    const theta=i*Math.PI*2/segments,sn=Math.sin(theta),cs=Math.cos(theta),t=Math.max(0,Math.min(1,(sn+.1)/.8)),blend=t*t*(3-2*t);
+    const back=longHair?-.190:-.083,forehead=.111+cs*.021,low=back+(forehead-back)*blend,phi=Math.acos(low/crownHeight),topPhi=Math.acos((sn>0?forehead:.120)/crownHeight);
+    for(let j=0;j<=steps;j++){hairPoints.push(scalp(theta,phi*j/steps));crownPoints.push(scalp(theta,topPhi*j/steps));}
    }
-   const headDepth=project([0,hy,hz]).depth,hairDepth=headDepth+.095;
-   silhouette(hairPoints,look.hair,headDepth-.012,.85);
-   // Only the camera-facing sectors of the back shell cover the skull. A
-   // single rear silhouette would either mask the face or expose a bald back.
+   const hairLight={left:Infinity,right:-Infinity,top:Infinity,bottom:-Infinity};
+   for(const p of hairPoints.map(project)){hairLight.left=Math.min(hairLight.left,p.x);hairLight.right=Math.max(hairLight.right,p.x);hairLight.top=Math.min(hairLight.top,p.y);hairLight.bottom=Math.max(hairLight.bottom,p.y);}
+   silhouette(hairPoints,look.hair,headDepth-.012,.95,false,hairLight);
+   // Shared lighting removes the separate vertical bands of the former wig.
    for(let i=segments/2;i<segments;i++){
-    const angle=(i+.5)*Math.PI*2/segments,facing=Math.cos(angle)*sideView+Math.sin(angle)*front;
+    const theta=(i+.5)*Math.PI*2/segments,facing=Math.cos(theta)*sideView+Math.sin(theta)*front;
     if(facing<=.025)continue;
-    const sector=[];for(const index of [i-1,i,i+1]){const wrapped=(index+segments)%segments;sector.push(...hairPoints.slice(wrapped*4,wrapped*4+4));}
-    silhouette(sector,look.hair,headDepth+.033+facing*.030,.85);
+    const sector=[];for(const index of [i-1,i,i+1]){const at=((index+segments)%segments)*(steps+1);sector.push(...hairPoints.slice(at,at+steps+1));}
+    silhouette(sector,look.hair,headDepth+.033+facing*.030,.95,false,hairLight);
    }
-   silhouette(hairPoints.filter(point=>point[2]>=hz+.075),look.hair,hairDepth,.85);
-   const lock=(points,width,shade=0,frontLock=true)=>{
-    const samples=[],steps=tileWidth<70?4:10;for(let i=0;i<=steps;i++){const t=i/steps,s=1-t;samples.push(points[0].map((v,j)=>s*s*s*v+3*s*s*t*points[1][j]+3*s*t*t*points[2][j]+t*t*t*points[3][j]));}
-    ribbon(samples,samples.map((_,i)=>width*(.28+.72*Math.sin((i/steps)*Math.PI)**.55)),colorHex(look.hair,shade),.023);if(frontLock)commands.at(-1).depth=hairDepth+.018;
-    if(tileWidth>=55){curve(points,color(look.hair,shade+13),.004,.034);if(frontLock)commands.at(-1).depth=hairDepth+.020;}
+   silhouette(crownPoints,look.hair,hairDepth,.95,false,hairLight);
+   const lock=(points,width,shade=0,foreground=true)=>{
+    const samples=[],count=tileWidth<70?4:8;
+    for(let i=0;i<=count;i++){const t=i/count,s=1-t;samples.push(points[0].map((v,j)=>s*s*s*v+3*s*s*t*points[1][j]+3*s*t*t*points[2][j]+t*t*t*points[3][j]));}
+    ribbon(samples,samples.map((_,i)=>width*(.24+.76*Math.sin(i/count*Math.PI))),colorHex(look.hair,shade),.022);if(foreground)commands.at(-1).depth=hairDepth+.018;
+    if(tileWidth>=55){curve(points,color(look.hair,shade+15),.004,.033);if(foreground)commands.at(-1).depth=hairDepth+.020;}
    };
-   if(['sweep','bob','ponytail','tuft'].includes(look.style)){
-    for(let i=0;i<5;i++){
-     const x=-.22+i*.086;
-     lock([[x+.07,hy-.06,hz+.249],[x+.11,hy+.09,hz+.28],[x+.04,hy+.242,hz+.208],[x-.048,hy+.22,hz+.094+(i%2)*.014]],.022+(4-i)*.004,i%2?1:-5);
+   if(curly){
+    // Dense, overlapping low curls form one broad, soft cloud. They replace
+    // isolated rings on a tall scalp; subtle ridges follow individual locks.
+    const rows=tileWidth<70?[[12,1.07,.073,.047],[9,.66,.069,.045],[5,.30,.063,.035]]:[[14,1.07,.070,.047],[11,.66,.067,.045],[6,.30,.061,.035]];
+    let index=0;
+    for(let row=0;row<rows.length;row++){
+     const [count,phi,radius,depth]=rows[row];
+     for(let i=0;i<count;i++,index++){
+      const theta=(i+row*.43)*Math.PI*2/count,center=scalp(theta,phi,-.007),normal=Math.sin(phi)*(Math.cos(theta)*sideView+Math.sin(theta)*front)+Math.cos(phi)*.95;
+      if(normal<-.08)continue;
+      const variation=(index%3-1)*.002;
+      sphere(center,radius+variation,radius*.87,depth,colorHex(look.hair,(index%3-1)*2),0,.67);commands.at(-1).depth=hairDepth+.014+Math.max(0,normal)*.043+row*.004;
+      if(tileWidth>=90&&normal>.15){const [x,y,z]=center;curve([[x-.020,y+.030,z+.010],[x-.025,y+.055,z+.033],[x+.026,y+.047,z+.029],[x+.015,y+.029,z+.013]],color(look.hair,10),.003,.03);commands.at(-1).depth=hairDepth+.016+normal*.043+row*.004;}
+     }
     }
    }else{
-    const count=tileWidth<70?10:18;
-    for(let i=0;i<count;i++){
-     const angle=i/(count/2)*Math.PI*2,layer=i<count/2?0:1,x=Math.cos(angle)*(.205-layer*.067),y=hy+Math.sin(angle)*(.168-layer*.06),z=hz+.158+layer*.075;
-     lock([[x+.027,y+.005,z-.020],[x-.045,y+.024,z-.038],[x-.040,y+.053,z+.048],[x+.026,y+.020,z+.031]],.025,i%3*3-3);
+    for(let i=0;i<3;i++){
+     const theta=Math.PI*(.28+i*.18),lift=look.style==='tuft'?.013:0;
+     lock([scalp(.08+i*.08,.38+i*.12,lift),scalp(theta*.54,.74,lift),scalp(theta*.87,1.08),scalp(theta,1.22+(i%2)*.06)],.052-i*.004,i%2?2:-3);
     }
    }
-   if(longHair)for(const side of [-1,1])for(let i=0;i<3;i++){
-    const yy=hy-.1+i*.066;
-    lock([[side*.21,yy-.027,hz+.19],[side*.30,yy+.011,hz+.088],[side*.29,yy+.014,hz-.137],[side*.215,yy+.022,hz-.155]],.036,i*2-5,false);
+   if(longHair)for(const side of [-1,1]){
+    lock([[side*.165,hy+.010,hz+.174],[side*.277,hy+.084,hz+.055],[side*.284,hy+.025,hz-.176],[side*.210,hy+.032,hz-.159]],.057,-2,false);
    }
    if(look.style==='bun'||look.style==='ponytail'){
-    const tail=[.015,hy-.215,hz+(look.style==='bun'?.205:.06)];
-    volume(tail,look.style==='bun'?[[-.065,.068,.064],[0,.108,.099],[.095,.091,.076],[.129,.02,.025]]:[[-.17,.037,.047],[-.09,.087,.086],[.06,.105,.12],[.137,.044,.056]],look.hair,-.012);
-    for(let i=0;i<4;i++)curve([[tail[0]-.055+i*.03,tail[1]+.066,tail[2]+.087],[tail[0]-.11+i*.028,tail[1]+.10,tail[2]+.025],[tail[0]-.08+i*.03,tail[1]+.102,tail[2]-.06],[tail[0]-.025+i*.02,tail[1]+.057,tail[2]-.10]],color(look.hair,17),.008,.029);
+    const tail=[.015,hy-.230,hz+(look.style==='bun'?.196:.06)];
+    if(look.style==='bun')sphere(tail,.111,.105,.098,look.hair);
+    else volume(tail,[[-.170,.007,.01],[-.128,.049,.053],[-.035,.090,.095],[.065,.098,.110],[.125,.041,.047],[.138,.004,.005]],look.hair,-.012);
+    for(let i=0;i<3;i++)curve([[tail[0]-.047+i*.036,tail[1]+.060,tail[2]+.066],[tail[0]-.068+i*.031,tail[1]+.102,tail[2]+.030],[tail[0]-.065+i*.032,tail[1]+.104,tail[2]-.037],[tail[0]-.023+i*.024,tail[1]+.063,tail[2]-.073]],color(look.hair,15),.005,.025);
    }
-   // Back strands follow the skull instead of exposing a second hair shell.
-   for(let i=0;i<7;i++){const theta=Math.PI+ i*Math.PI/6,x=Math.cos(theta),y=Math.sin(theta);curve([[x*.12,hy+y*.09-.03,hz+.23],[x*.21,hy+y*.17-.035,hz+.16],[x*headWidth,hy+y*.223-.03,hz+.035],[x*headWidth*.97,hy+y*.225-.03,hz+(longHair?-.13:-.065)]],color(look.hair,11),.006,.019);}
+   // Broad, shallow flow lines are confined to the actual back scalp surface.
+   if(tileWidth>=55)for(let i=0;i<5;i++){
+    const theta=Math.PI+(i+.5)*Math.PI/5,phi=longHair?2.18:1.82,normal=Math.cos(theta)*sideView+Math.sin(theta)*front;
+    if(normal<=0)continue;
+    curve([scalp(theta,.40),scalp(theta,.86),scalp(theta,1.45),scalp(theta,phi)],color(look.hair,12),.004,.023);
+   }
   }else for(const side of [-1,1]){
-   volume([side*headWidth*.9,hy-.073,hz-.002],[[-.107,.033,.045],[.002,.057,.106],[.123,.022,.068]],look.hair,.005);
-   for(let i=0;i<3;i++)curve([[side*headWidth*.83,hy-.08+i*.026,hz+.105],[side*headWidth,hy-.07+i*.026,hz+.067],[side*headWidth,hy-.072+i*.026,hz-.024],[side*headWidth*.91,hy-.09+i*.026,hz-.075]],color(look.hair,16),.006,.022);
+   volume([side*headWidth*.9,hy-.073,hz-.002],[[-.107,.014,.029],[-.05,.043,.088],[.030,.052,.102],[.102,.031,.078],[.128,.004,.008]],look.hair,.005);
+   for(let i=0;i<3;i++)curve([[side*headWidth*.83,hy-.08+i*.026,hz+.105],[side*headWidth,hy-.07+i*.026,hz+.067],[side*headWidth,hy-.072+i*.026,hz-.024],[side*headWidth*.91,hy-.09+i*.026,hz-.075]],color(look.hair,16),.005,.022);
   }
   // Uniform details sit on the front surface, so they disappear from back views.
   if(visibleFace){

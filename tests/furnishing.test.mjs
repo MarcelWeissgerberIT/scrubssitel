@@ -4,7 +4,7 @@ import {Game} from '../src/game.js';
 import {ROOMS} from '../src/content.js';
 import {FURNITURE,requirements,roomObjects} from '../src/objects.js';
 import {layoutStatus,workPoint,patientPoint,roomSeats,furnitureBlocked,insidePath,innerDoor,roomDoor} from '../src/layout.js';
-import {furnishedRoom} from './helpers.mjs';
+import {furnishedRoom,hireAndPlace,deployStaff} from './helpers.mjs';
 
 const DT=.05;
 const ok=(result,label='operation')=>{assert.equal(result?.error,undefined,`${label}: ${result?.error}`);return result;};
@@ -30,7 +30,7 @@ function clinic({waiting=true,lounge=true,rotated=false}={}){
  }
  if(waiting)ok(furnishedRoom(g,'waiting',{x:7,y:8,w:6,h:3}));
  if(lounge)ok(furnishedRoom(g,'lounge',{x:17,y:2,w:5,h:4}));
- for(const cast of ['rosa','milo','bea'])ok(g.hire(cast));
+ for(const cast of ['rosa','milo','bea'])ok(hireAndPlace(g,cast));
  ok(g.openClinic());g.arrivalTimer=1e9;g.nextEvent=1e9;
  until(g,()=>g.staff.every(s=>g.staffReady(s)),60,()=>{},{collision:true});
  return g;
@@ -54,11 +54,11 @@ test('new room shells are empty, expose unmet equipment requirements and cannot 
 test('equipment, finishing and physical staff arrival gate clinic work in sequence',()=>{
  const g=new Game({mode:'sandbox',seed:42});
  for(const [type,rect,cast] of [['reception',{x:15,y:12,w:5,h:4},'rosa'],['gp',{x:2,y:2,w:5,h:4},'milo'],['pharmacy',{x:8,y:2,w:5,h:4},'bea']]){
-  const r=ok(g.addRoom(type,rect)).room,s=ok(g.hire(cast)).staff;
+  const r=ok(g.addRoom(type,rect)).room,s=ok(hireAndPlace(g,cast)).staff;
   assert.equal(r.staffId,null);assert.equal(s.roomId,null);assert.equal(g.staffReady(s),false);
   ok(g.autoFurnish(r.id));assert.equal(r.staffId,null,'furniture alone must not open the room');
   assert.equal(g.openClinic().error,'openingRequirements');
-  ok(g.finishRoom(r.id));assert.equal(r.staffId,s.id);assert.equal(g.staffReady(s),false);
+  ok(g.finishRoom(r.id));assert.equal(r.staffId,null);deployStaff(g,s);assert.equal(r.staffId,s.id);assert.equal(g.staffReady(s),false);
   assert.equal(g.addFurniture(r.id,'plant',{x:3,y:2,rotation:0}).error,'roomEditing');
  }
  ok(g.openClinic());g.arrivalTimer=g.nextEvent=1e9;const p=g.spawnPatient('jitters');
@@ -186,7 +186,7 @@ test('schema 6 resumes draft furniture and a pending renovation deterministicall
  const f=ok(draft.addFurniture(r.id,'plant',{x:3,y:2,rotation:0})).object;
  assert.equal(layoutStatus(r).ready,false,'the saved draft deliberately lacks required equipment');
  const copy=Game.restore(draft.snapshot());assert.equal(copy.version,6);assert.deepEqual(copy.snapshot(),draft.snapshot());
- for(const g of [draft,copy]){ok(g.moveFurniture(r.id,f.id,{x:4,y:2,rotation:1}));ok(g.addFurniture(r.id,'gp',{x:1,y:.75,rotation:1}));ok(g.finishRoom(r.id));ok(g.hire('milo'));}
+ for(const g of [draft,copy]){ok(g.moveFurniture(r.id,f.id,{x:4,y:2,rotation:1}));ok(g.addFurniture(r.id,'gp',{x:1,y:.75,rotation:1}));ok(g.finishRoom(r.id));ok(hireAndPlace(g,'milo'));}
  assert.deepEqual(copy.snapshot(),draft.snapshot());
  const active=clinic(),gp=roomOf(active,'gp'),p=active.spawnPatient('jitters');until(active,()=>p.stage==='diagnosis'&&p.state==='service');ok(active.beginRoomEdit(gp.id));
  deterministicContinuation(active,800);

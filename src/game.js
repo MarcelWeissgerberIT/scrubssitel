@@ -1,4 +1,4 @@
-import {initStaff,dispatchStaff,staffReady,updateStaff,repathStaff,requestBreak,migrateStaff,validateStaff} from './staff.js';
+import {initStaff,entrySpot,dispatchStaff,staffReady,updateStaff,repathStaff,requestBreak,migrateStaff,validateStaff,staffPlacement,placeStaff,canPickUpStaff} from './staff.js';
 import {ROOMS, CAST, ILLNESSES, LEVELS, PROJECTS, EVENTS} from './content.js';
 import {MONTH_SECONDS,YEAR_SECONDS,ANNUAL_TARGET,GUIDE,guideIndex} from './tutorial.js';
 import {candidates,candidate,RECRUITMENT_FEE} from './recruitment.js';
@@ -32,6 +32,9 @@ export class Game {
  removeFurniture(id,item){return furnishing.removeFurniture(this,id,item);}
  autoFurnish(id){return furnishing.autoFurnish(this,id);}
  finishRoom(id){return furnishing.finishRoom(this,id);}
+ staffPlacement(id,roomId,point){return staffPlacement(this,id,roomId,point);}
+ placeStaff(id,roomId,point){return placeStaff(this,id,roomId,point);}
+ canPickUpStaff(id){return canPickUpStaff(this,id);}
 
  openClinic(){for(const type of ['reception','gp','pharmacy'])if(!this.rooms.some(r=>r.type===type&&r.staffId&&this.roomReady(r)))return {error:'openingRequirements'};this.admissionsOpen=true;this.arrivalTimer=1;this.log('clinicOpened');return {};}
  yearlyProfit(){return (this.income-this.yearStart.income)-(this.expenses-this.yearStart.expenses)-(this.construction-this.yearStart.construction);}
@@ -86,12 +89,12 @@ export class Game {
  applicants(role=null){return this.applicantIds.map(candidate).filter(c=>c&&(!role||c.role===role));}
  refreshApplicants(){if(this.cash<RECRUITMENT_FEE)return {error:'notEnough'};if(this.recruitmentRound>=10000)return {error:'noApplicants'};this.cash-=RECRUITMENT_FEE;this.expenses+=RECRUITMENT_FEE;this.recruitmentRound++;this.applicantIds=candidates(this.recruitmentRound).map(c=>c.id);this.log('newApplicants');return {};}
  hire(castId,free=false){const base=CAST.find(s=>s.id===castId);if(!base)return {error:'noApplicants'};const choice=this.applicants().find(c=>c.castId===castId)||this.applicants(base.role)[0];return choice?this.hireApplicant(choice.id,free):{error:'noApplicants'};}
- hireApplicant(applicantId,free=false){const base=this.applicants().find(c=>c.id===applicantId);if(!base)return {error:'noApplicants'};if(!free&&this.cash<base.hire)return {error:'notEnough'};const s={...base,id:++this.id,applicantId:base.id,fatigue:0,resting:false,roomId:null};this.applicantIds=this.applicantIds.filter(id=>id!==applicantId);this.staff.push(s);initStaff(this,s);if(!free){this.cash-=base.hire;this.construction+=base.hire;this.log('hireDone',s.name);}this.assignStaff();dispatchStaff(this,s);for(const type of Object.keys(ROOMS))this.rebalance(type);this.checkTutorial();return {staff:s};}
+ hireApplicant(applicantId,free=false){const base=this.applicants().find(c=>c.id===applicantId);if(!base)return {error:'noApplicants'};if(!free&&this.cash<base.hire)return {error:'notEnough'};const spot=entrySpot(this);if(!spot)return {error:'staffNoSpace'};const s={...base,id:++this.id,applicantId:base.id,fatigue:0,resting:false,roomId:null};this.applicantIds=this.applicantIds.filter(id=>id!==applicantId);this.staff.push(s);initStaff(this,s);Object.assign(s,spot);if(!free){this.cash-=base.hire;this.construction+=base.hire;this.log('hireDone',s.name);}this.checkTutorial();return {staff:s};}
  dismiss(id){const s=this.staff.find(v=>v.id===id);if(!s)return;const r=this.room(s.roomId);if(r?.patientId)return {error:'removeBusy'};if(r)r.staffId=null;this.staff=this.staff.filter(v=>v.id!==id);this.assignStaff();return {};}
  assignStaff(){
   for(const s of this.staff){if(s.roomId&&!this.room(s.roomId))s.roomId=null;}
   for(const r of this.rooms){if(r.staffId&&!this.staff.some(s=>s.id===r.staffId)){r.staffId=null;}}
-  for(const r of this.rooms){if(!ROOMS[r.type].role||r.staffId||!this.roomReady(r))continue;const s=this.staff.find(s=>s.role===ROOMS[r.type].role&&!s.roomId&&!s.resting);if(s){r.staffId=s.id;s.roomId=r.id;}}
+  for(const r of this.rooms){if(!ROOMS[r.type].role||r.staffId||!this.roomReady(r))continue;const s=this.staff.find(s=>!s.manualPlacement&&!s.awaitingPlacement&&s.role===ROOMS[r.type].role&&!s.roomId&&!s.resting);if(s){r.staffId=s.id;s.roomId=r.id;}}
  }
  upgrade(id){const r=this.room(id);if(!r)return {};if(r.level>=3)return {error:'maxLevel'};const cost=Math.round(ROOMS[r.type].cost*.65*r.level);if(this.cash<cost)return {error:'notEnough'};this.cash-=cost;this.construction+=cost;r.level++;r.condition=100;this.log('upgraded',r.type);this.checkTutorial();return {};}
  sell(id){const r=this.room(id);if(!r)return {};if(r.patientId||this.patients.some(p=>p.seatRoom===id||this.contains(r,p))||this.staff.some(s=>this.contains(r,s)||s.breakRoomId===id||s.destination?.roomId===id))return {error:'removeBusy'};const s=this.staff.find(s=>s.id===r.staffId);if(s)s.roomId=null;for(const p of this.patients)if(p.targetRoom===id){p.path=this.corridorPath(p,this.room(p.seatRoom)?this.door(this.room(p.seatRoom)):p)||[];p.seatRoom=null;p.seatIndex=null;p.targetRoom=null;p.state=p.path.length?'relocating':'waiting';}this.cash+=Math.round(ROOMS[r.type].cost*.5);this.construction-=Math.round(ROOMS[r.type].cost*.5);this.rooms=this.rooms.filter(r=>r.id!==id);this.assignStaff();repathStaff(this);return {};}
@@ -247,6 +250,7 @@ export class Game {
   for(const r of data.rooms)if(!isNum(r.doorOpen)||r.doorOpen<0||r.doorOpen>1||typeof r.doorHeld!=='boolean')throw Error('Invalid door');
   for(const p of data.patients)if(typeof p.registered!=='boolean'||['diagnosis','treatment'].includes(p.stage)&&!p.registered||p.age!==data.records.find(r=>r.id===p.id).age||p.child!==(p.age<16)||!Number.isInteger(p.queueOrder)||p.queueOrder<0||p.queueOrder>data.queueSerial||p.calledAt!==null&&!isNum(p.calledAt)||p.state==='called'&&!isNum(p.calledAt))throw Error('Invalid appointment');
   const g=Object.create(Game.prototype);for(const field of fields)g[field]=JSON.parse(JSON.stringify(data[field]));
+  for(const s of g.staff)if(!Object.hasOwn(s,'manualPlacement')&&!Object.hasOwn(s,'awaitingPlacement')){s.manualPlacement=false;s.awaitingPlacement=false;}
   for(const r of g.rooms)if(g.path(ENTRY,g.door(r))===null)throw Error('Inaccessible room');
   if(g.version===5){validateStaff(g);furnishing.migrateFurniture(g);}else{furnishing.validateFurniture(g);validateStaff(g);}
   g.assignStaff();return g;

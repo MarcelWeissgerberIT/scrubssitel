@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {Game} from '../src/game.js';
 import {FURNITURE,furniturePorts,roomObjects} from '../src/objects.js';
 import {layoutStatus,solidRects,insidePath,roomDoor,workPoint,patientPoint,segmentBlocked,furnitureBlocked} from '../src/layout.js';
-import {furnishedRoom} from './helpers.mjs';
+import {furnishedRoom,hireAndPlace,deployStaff} from './helpers.mjs';
 
 const DT=.05;
 const NEW_KINDS=['counter-round','counter-modern','pharmacy-counter','writing-desk','round-table','medicine-rack','gum-machine','newspaper-rack','water-dispenser','coat-rack','sanitizer'];
@@ -26,17 +26,17 @@ function clinic({rotation=0,amenities=false}={}){
  ]){const r=ok(g.addRoom(type,rect)).room;ok(g.addFurniture(r.id,kind,{x:1.5,y:1,rotation}));if(amenities&&type==='reception')ok(g.addFurniture(r.id,'water-dispenser',{x:3.75,y:2,rotation:0}));ok(g.finishRoom(r.id));}
  ok(furnishedRoom(g,'gp',{x:2,y:2,w:5,h:4}));
  if(amenities){const r=ok(g.addRoom('waiting',{x:7,y:8,w:6,h:4})).room;ok(g.addFurniture(r.id,'chair',{x:.25,y:.75,rotation:0}));for(const [kind,x,y] of [['gum-machine',3,.75],['gum-machine',4,.75],['newspaper-rack',3,2.25],['water-dispenser',4,2.25]])ok(g.addFurniture(r.id,kind,{x,y,rotation:0}));ok(g.finishRoom(r.id));}
- for(const cast of ['rosa','milo','bea'])ok(g.hire(cast));
+ for(const cast of ['rosa','milo','bea'])ok(hireAndPlace(g,cast));
  ok(g.openClinic());g.arrivalTimer=g.nextEvent=1e9;for(const s of g.staff)s.nextBreakAt=1e9;
  until(g,()=>g.staff.every(s=>g.staffReady(s)),60,true);return g;
 }
 
 test('round and modern reception desks satisfy the lesson but still require finishing and one assigned receptionist',()=>{
  for(const kind of ['counter-round','counter-modern']){
-  const {g,room}=draft('reception'),staff=ok(g.hire('rosa')).staff;
+  const {g,room}=draft('reception'),staff=ok(hireAndPlace(g,'rosa')).staff;
   ok(g.addFurniture(room.id,kind,{x:2,y:2,rotation:0}));
   assert.deepEqual(layoutStatus(room).missing,[]);assert.equal(g.roomReady(room),false);assert.equal(room.staffId,null);
-  ok(g.finishRoom(room.id));assert.equal(g.roomReady(room),true);assert.equal(room.staffId,staff.id);
+  ok(g.finishRoom(room.id));assert.equal(g.roomReady(room),true);assert.equal(room.staffId,null);deployStaff(g,staff);assert.equal(room.staffId,staff.id);
   assert.equal(furniturePorts(room).filter(p=>p.kind==='work').length,1);
   assert.equal(furniturePorts(room).filter(p=>p.kind==='patient').length,1);
   assert.equal(g.staffReady(staff),false,'a purchased desk must not teleport the employee to work');

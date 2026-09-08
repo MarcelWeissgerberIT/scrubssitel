@@ -162,3 +162,14 @@ button{transition:background .15s}.guide-highlight{box-shadow:none!important}.ga
 #game-menu [data-section=clinic].game-menu-category{background:#d7e8d8;color:#45664b}
 #game-menu .game-menu-category.active{border:2px solid currentColor;box-shadow:0 0 0 4px #fffaf0}
 @media(max-width:700px){.tutorial-mode:not(.start-screen):not(.room-editor-open) .shift-sidebar{display:block;position:absolute;left:10px;top:142px;width:220px;max-height:180px;overflow:auto;z-index:4;padding:10px;border-radius:12px;border:1px solid #cfddc7;box-shadow:0 5px 18px #294c3922}.tutorial-mode:not(.start-screen) .shift-sidebar>:not(.guide-card):not(.tutorial-skip){display:none}.tutorial-mode:not(.start-screen) .guide-card{padding:12px;margin:0}.tutorial-mode:not(.start-screen) .guide-card h2{font-size:17px}.tutorial-mode:not(.start-screen) .guide-card p{font-size:12px}.tutorial-mode:not(.start-screen) .guide-dots{display:none}.start-screen #game-menu{--wheel-size:min(320px,88vw)}.start-screen .hospital-stage:has(.game-menu-wheel){min-height:350px}}
+
+/* Assign people with the same hand gesture used on the clinic floor. */
+.staff-placement-intro{padding:12px;border:1px solid #d5dfc5;border-radius:10px;background:#f0f5e5;font-size:12px;line-height:1.5;margin:0 0 14px;color:#526e54}
+.employee-card.awaiting-placement{border-color:#d5b374;background:#fff8e3}
+.employee-card .employee-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;grid-column:1/-1;margin-top:6px;width:100%}
+.employee-actions .staff-pick{display:inline-flex;gap:6px;align-items:center;font-size:12px;padding:8px 10px;min-height:36px}
+.staff-pick svg,.carry-hand svg{width:22px;height:22px;vertical-align:middle;flex:none}
+.employee-actions .staff-break{position:static;margin:0;font-size:11px}.employee-actions .dismiss-button{margin-left:auto}
+.guide-card .staff-pick svg{margin-right:5px}.staff-carry-hint{background:#fff6d9!important;border:1px solid #c4a365;color:#53613c;flex-wrap:wrap;z-index:6;line-height:1.4}
+.staff-carry-hint .small-button{padding:7px 10px;margin-left:auto}.staff-carry-hint b{white-space:nowrap}
+@media(max-width:700px){.staff-carry-hint{left:10px;right:10px;bottom:84px;font-size:11px}.staff-carry-hint .small-button{font-size:11px}.staff-placement-intro{font-size:11px}}

@@ -1,5 +1,5 @@
 import {defaultFurniture,insidePath,pointBlocked,segmentBlocked} from '../src/layout.js';
-import {furnishedRoom} from './helpers.mjs';
+import {furnishedRoom,hireAndPlace,deployStaff} from './helpers.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Game} from '../src/game.js';
@@ -21,8 +21,8 @@ function clinic({waiting = true, secondDoctor = false} = {}) {
   if (waiting) rooms.push(['waiting', {x:7,y:8,w:3,h:3}]);
   if (secondDoctor) rooms.push(['gp', {x:2,y:8,w:3,h:3}]);
   for (const [type, rect] of rooms) ok(furnishedRoom(g,type, rect), `build ${type}`);
-  for (const id of ['rosa', 'milo', 'bea', 'otto']) ok(g.hire(id), `hire ${id}`);
-  if (secondDoctor) ok(g.hire('milo'), 'hire second doctor');
+  for (const id of ['rosa', 'milo', 'bea', 'otto']) ok(hireAndPlace(g,id), `hire ${id}`);
+  if (secondDoctor) ok(hireAndPlace(g,'milo'), 'hire second doctor');
   ok(g.openClinic(), 'open');
   g.arrivalTimer = 1e9;
   g.nextEvent = 1e9;

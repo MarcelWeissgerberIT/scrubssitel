@@ -1,4 +1,4 @@
-import {furnishedRoom} from './helpers.mjs';
+import {furnishedRoom,hireAndPlace,deployStaff} from './helpers.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {CharacterAnimator,stepPose,skeleton,STRIDE,CHARACTER_SCALE,characterScale,SEAT_HEIGHT,HIP_RADIUS} from '../src/animation.js';
@@ -19,19 +19,19 @@ test('all eight headings and seated transitions have finite continuous joints',(
 });
 function rendererForStaff(){return Object.assign(Object.create(Renderer.prototype),{staffVisuals:new Map(),layoutKey:'test',initializingActors:false,lastTime:0});}
 test('staff presentation interpolates actual simulated positions without advancing their journey',()=>{
- const game=new Game({seed:1});furnishedRoom(game,'gp',{x:1,y:1,w:5,h:3});const s=game.hire('milo').staff,r=rendererForStaff();r.previousPatients=new Map();r.captureStep(game);game.admissionsOpen=true;game.arrivalTimer=1e9;game.update(.05);const snapshot=game.snapshot(),a=r.staffActor(s,game,1,0),b=r.staffActor(s,game,1,1),middle=r.staffActor(s,game,1,.5);near(middle.x,(a.x+b.x)/2);near(middle.y,(a.y+b.y)/2);assert.deepEqual(game.snapshot(),snapshot);assert.ok(Math.hypot(a.x-b.x,a.y-b.y)>0);
+ const game=new Game({seed:1});furnishedRoom(game,'gp',{x:1,y:1,w:5,h:3});const s=hireAndPlace(game,'milo').staff,r=rendererForStaff();r.previousPatients=new Map();r.captureStep(game);game.admissionsOpen=true;game.arrivalTimer=1e9;game.update(.05);const snapshot=game.snapshot(),a=r.staffActor(s,game,1,0),b=r.staffActor(s,game,1,1),middle=r.staffActor(s,game,1,.5);near(middle.x,(a.x+b.x)/2);near(middle.y,(a.y+b.y)/2);assert.deepEqual(game.snapshot(),snapshot);assert.ok(Math.hypot(a.x-b.x,a.y-b.y)>0);
 });
 test('staff enter wide rooms through an open doorway and never sit without a real seat',()=>{
- const game=new Game({seed:1}),room=furnishedRoom(game,'gp',{x:1,y:9,w:10,h:3}).room,s=game.hire('milo').staff,renderer=rendererForStaff();game.admissionsOpen=true;game.arrivalTimer=1e9;game.nextEvent=1e9;let before={x:s.x,y:s.y},crossed=false;
+ const game=new Game({seed:1}),room=furnishedRoom(game,'gp',{x:1,y:9,w:10,h:3}).room,s=hireAndPlace(game,'milo').staff,renderer=rendererForStaff();game.admissionsOpen=true;game.arrivalTimer=1e9;game.nextEvent=1e9;let before={x:s.x,y:s.y},crossed=false;
  for(let i=0;i<1000&&!game.staffReady(s);i++){game.update(.05);if(!game.contains(room,before)&&game.contains(room,s)){near(s.x,game.door(room).x);assert.ok(room.doorOpen>=.85);crossed=true;}assert.ok(Math.hypot(s.x-before.x,s.y-before.y)<=.140001);before={x:s.x,y:s.y};}
- assert.ok(crossed);game.requestBreak(s.id);for(let i=0;i<1000&&s.state!=='break';i++)game.update(.05);assert.equal(s.state,'break');const actor=renderer.staffActor(s,game,20),animator=new CharacterAnimator();animator.update(actor,20);const pose=animator.update(actor,21);assert.equal(actor.hasSeat,false);near(pose.sit,0);
+ assert.ok(game.staffReady(s));game.requestBreak(s.id);for(let i=0;i<1000&&s.state!=='break';i++)game.update(.05);assert.equal(s.state,'break');const actor=renderer.staffActor(s,game,20),animator=new CharacterAnimator();animator.update(actor,20);const pose=animator.update(actor,21);assert.equal(actor.hasSeat,false);near(pose.sit,0);before={x:s.x,y:s.y};for(let i=0;i<4000&&!game.staffReady(s);i++){game.update(.05);if(!game.contains(room,before)&&game.contains(room,s)){near(s.x,game.door(room).x);assert.ok(room.doorOpen>=.85);crossed=true;}assert.ok(Math.hypot(s.x-before.x,s.y-before.y)<=.140001);before={x:s.x,y:s.y};}assert.ok(crossed,'return from break must pass the open door');assert.ok(game.staffReady(s));
 });
 test('all original staff and patients have complete modeled appearances at the smaller scale',()=>{
  for(const person of CAST)assert.ok(LOOKS[person.id]);for(let i=0;i<3;i++)assert.ok(LOOKS[`patient-${i}`]);assert.ok(CHARACTER_SCALE<=1);
 });
 
 test('break seat reservations persist when another employee leaves or joins the lounge',()=>{
- const game=new Game({seed:1});furnishedRoom(game,'lounge',{x:2,y:2,w:5,h:3});const employees=['milo','bea','otto'].map(id=>game.hire(id).staff);game.admissionsOpen=true;game.arrivalTimer=1e9;game.nextEvent=1e9;game.requestBreak(employees[0].id);game.requestBreak(employees[1].id);game.update(.05);const roomId=employees[1].breakRoomId,index=employees[1].breakSeatIndex;assert.notEqual(index,null);game.dismiss(employees[0].id);game.requestBreak(employees[2].id);game.update(.05);assert.equal(employees[1].breakRoomId,roomId);assert.equal(employees[1].breakSeatIndex,index);assert.notEqual(employees[2].breakSeatIndex,index);
+ const game=new Game({seed:1});furnishedRoom(game,'lounge',{x:2,y:2,w:5,h:3});const employees=['otto','otto','otto'].map(id=>hireAndPlace(game,id).staff);game.admissionsOpen=true;game.arrivalTimer=1e9;game.nextEvent=1e9;game.requestBreak(employees[0].id);game.requestBreak(employees[1].id);game.update(.05);const roomId=employees[1].breakRoomId,index=employees[1].breakSeatIndex;assert.notEqual(index,null);game.dismiss(employees[0].id);game.requestBreak(employees[2].id);game.update(.05);assert.equal(employees[1].breakRoomId,roomId);assert.equal(employees[1].breakSeatIndex,index);assert.notEqual(employees[2].breakSeatIndex,index);
 });
 
 test('adult and child support feet retain their world position through a planted step',()=>{
