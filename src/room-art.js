@@ -206,6 +206,13 @@ export function drawRoomObject(renderer,room,object,time=0) {
       wire([[x+w*.5,y+.07,.56],[x+w*.5,y+.07,.74],[x+w*.5,y+.20,.74],[x+w*.5,y+.20,.68]],palette.metal,.041);soft(x+.06,y+.07,.075,.09,.66,palette.accent,.55,.025);
     }else if(kind==='toilet'){
       soft(x+.14,y+.08,w-.28,.25,.70,'#dce3d1',.09,.065);soft(x+.10,y+.045,w-.20,.29,.74,'#f0edda',.69,.08);soft(x+.24,y+.43,w-.48,.40,.28,'#ccd7c7',.04,.095);dot(x+w/2,y+.65,.33,.28,.14,'#f1efdc');dot(x+w/2,y+.65,.339,.165,.075,'#a8c2b4');dot(x+w/2,y+.66,.341,.115,.045,'#789d92');button(x+w-.25,y+.08,.748);
+      if(object.furnitureKind==='toilet-cubicle'){
+        // Paper and holder stay inside the enclosing side wall, attached to the
+        // WC's own depth layer so a nearer opaque panel always covers them.
+        wire([[x+w+.095,y+.43,.51],[x+w+.095,y+.61,.51]],'#8ca69b',.025);
+        soft(x+w+.052,y+.455,.085,.13,.568,'#f1ebd7',.45,.039);
+        soft(x+w+.054,y+.50,.006,.095,.46,'#e5dec9',.385,.002);
+      }
       if(object.divider===true){soft(x-.15,y,.055,h+.2,.97,palette.body,.05,.02);wire([[x-.14,y+.1,.93],[x-.14,y+h+.12,.93]],palette.light,.024);}
     }else if(kind==='poster'){
       soft(x,y,w,h,z,palette.wood,.64,.018);b.face(x+.035,y+h+.002,.67,w-.07,.425,palette.light,.014);

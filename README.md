@@ -96,6 +96,14 @@ The tutorial uses a gentler treatment failure rate than story/free play; registr
 
 Less than −$5,000 cash or zero reputation ends a shift.
 
+## Patient demand and privacy
+
+Version 2.13 starts with a few appointments, then grows demand gradually through good visit ratings and finished, assigned treatment departments. Added floor area alone does not increase arrivals. New admissions pause when required staff are unavailable or the active caseload reaches the clinic’s capacity. Existing overloaded saves keep their patients and work through the backlog. Event-driven arrivals use the same gate; incoming conditions require an equipped, assigned treatment department.
+
+Patient happiness combines remaining patience and cleanliness. Seats, waiting amenities and short waits help preserve patience; the treatment outcome affects the final visit rating. Ratings influence reputation and future demand. The sidebar opens a detailed admission status and waiting list; each patient record shows current happiness or its completed visit rating. Older completed visits are left unrated. With the gentler opening, the tutorial’s $100,000 annual profit target remains achievable in a later year.
+
+The toilet catalog includes a $450 complete WC cubicle with opaque side/back panels and a closed door. It can be placed and rotated as one item, has separate solid panels for collision and depth sorting, and provides the required WC equipment. The starter layout fits one cubicle and a sink in a 3×3 room. Existing furniture layouts remain unchanged on load; open toilets can be replaced through the room editor. Restrooms still provide clinic-wide patience support; individual toilet visits and cubicle-door opening are not simulated.
+
 ## Controls and saves
 
 The animated menu wheel combines building, staff, patients and clinic management. Select an inner category, then an outer icon. Distinct symbols and short visible captions identify each action; hover or keyboard focus shows its full label. M opens the wheel, B opens its building section, and Escape closes it. Space pauses; 1/2/3 change speed. Drag a rectangle of at least 3×3 tiles to build. Doorways must stay accessible. Mouse wheel zooms. Drag empty floor, right/middle-drag, Shift+wheel or use arrows to pan, including while paused. The **View / Ansicht** button enables dragging anywhere without selecting people or furniture; Escape returns to selection. With construction selected and the canvas focused, arrows move the cursor and Enter sets each corner. Select a room to inspect, upgrade or demolish it.

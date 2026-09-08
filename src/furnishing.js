@@ -55,7 +55,7 @@ export function validateFurniture(g){
 // Version-five furniture was decorative and had no saved coordinates. Preserve all
 // clinical and financial history while moving old anchors onto the new layout.
 function legacyFurniture(r){
- const furniture=defaultFurniture(r).map(o=>({...o,paid:0})),draft={...r,furniture};
+ const furniture=defaultFurniture(r,{legacyToilet:true}).map(o=>({...o,paid:0})),draft={...r,furniture};
  const extras=r.type==='waiting'?['toys','books','plant']:r.type==='lounge'?['coffee','books','plant','poster','clock']:r.type==='toilet'?['poster','clock']:['cabinet',...(r.type==='reception'?[]:['sink']),'plant','poster','clock'];
  for(const kind of extras){const spec=FURNITURE[kind],positions=[];
   if(spec.wall){for(let x=.25;x<=r.w-spec.w;x+=.25)positions.push({x,y:0,rotation:0});for(let y=.25;y<=r.h-spec.w;y+=.25)positions.push({x:0,y,rotation:3});}

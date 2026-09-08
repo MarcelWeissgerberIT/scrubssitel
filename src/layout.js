@@ -71,13 +71,13 @@ function structuralError(r){if(!Array.isArray(r.furniture)||r.furniture.length>6
 }
 export function layoutStatus(r){let blocked=structuralError(r);const items=Array.isArray(r.furniture)?r.furniture:[],missing=requirements(r.type).map(req=>({...req,have:req.kind==='seat'?items.reduce((sum,f)=>sum+(Object.hasOwn(FURNITURE,f?.kind)?FURNITURE[f.kind].ports.filter(p=>p.kind==='seat').length:0),0):items.filter(f=>satisfiesRequirement(f?.kind,req.kind)).length})).filter(v=>v.have<v.need);if(!blocked){const d=roomDoor(r);if(pointBlocked(r,innerDoor(r))||geometry(r).ports.some(p=>insidePath(r,d,p)===null))blocked='furnitureBlocked';}return {ready:!blocked&&!missing.length,missing,blocked};}
 export function validatePlacement(r,item,ignoreId=null){const furniture=(r.furniture||[]).filter(f=>f.id!==ignoreId);const candidate={...r,furniture:[...furniture,{...item}]};return layoutStatus(candidate).blocked;}
-export function defaultFurniture(r){
+export function defaultFurniture(r,{legacyToilet=false}={}){
  const draft={...r,furniture:[]};let serial=0;
  const put=(kind,x,y,rotation=0)=>{const item={id:`default-${kind}-${++serial}`,kind,x,y,rotation};if(!validatePlacement(draft,item)){draft.furniture.push(item);return true;}serial--;return false;};
  const search=kind=>{for(const rotation of [0,1,2,3])for(let y=.25;y<r.h;y+=.25)for(let x=.25;x<r.w;x+=.25)if(put(kind,x,y,rotation))return true;return false;};
  if(r.type==='reception'){if(!put('counter',.25,.75))search('counter');}
  else if(['gp','pharmacy','therapy','surgery','lab'].includes(r.type)){if(!put(r.type,.25,.75))search(r.type);}
- else if(r.type==='toilet'){if(!put('toilet',.25,.75))search('toilet');if(!put('sink',r.w-1,.75))search('sink');}
+ else if(r.type==='toilet'){const kind=legacyToilet?'toilet':'toilet-cubicle';if(!put(kind,.25,legacyToilet||r.y>=8?.75:.25,!legacyToilet&&r.y>=8?2:0))search(kind);if(!put('sink',r.w-1,.75))search('sink');}
  else if(['waiting','lounge'].includes(r.type)){
   const kind=r.type==='lounge'?'sofa':'chair';if(!put(kind,.25,.75))search(kind);
   const target=Math.min(r.type==='waiting'?8:4,Math.max(1,Math.floor(r.w*r.h/4)));

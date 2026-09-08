@@ -1,0 +1,32 @@
+import {getDemandStatus,patientHappiness} from './demand.js';
+
+const tone=value=>value>=75?'good':value>=50?'fair':'poor';
+function face(value){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 9h.1M16 9h.1${value>=75?'M7 14q5 6 10 0':value>=50?'M8 16h8':'M7 17q5-6 10 0'}"/></svg>`;}
+const statusText=(d,copy)=>d.paused?copy(d.reason==='closed'?'Planning · no arrivals':'Admissions on hold',d.reason==='closed'?'Planung · keine Ankünfte':'Aufnahme wartet'):copy(d.phase==='starting'?'A gentle start':d.phase==='growing'?'Growing slowly':'Appointments open',d.phase==='starting'?'Ruhiger Start':d.phase==='growing'?'Langsam wachsen':'Termine frei');
+const reasons={
+ closed:['Open your furnished and staffed clinic when you are ready.','Öffne deine eingerichtete und besetzte Klinik, sobald du bereit bist.'],
+ noReception:['Finish a reception and place a receptionist at its desk.','Stelle eine Rezeption fertig und setze dort eine Empfangskraft ein.'],
+ noDiagnosis:['A finished diagnosis room needs an assigned doctor.','Eine fertige Diagnostik braucht einen zugeteilten Arzt oder eine Ärztin.'],
+ noTreatment:['A finished treatment room needs its assigned clinician.','Ein fertiger Behandlungsraum braucht das passende Personal.'],
+ staffBreak:['A required station is taking a break. New arrivals wait until the team is available again.','Eine benötigte Station macht Pause. Neue Ankünfte warten, bis das Team wieder verfügbar ist.'],
+ backlog:['Clear existing appointments first. Admissions resume automatically when there is capacity.','Arbeite zuerst die vorhandenen Termine ab. Die Aufnahme geht bei freier Kapazität automatisch weiter.']
+};
+const activePatients=g=>g.patients.filter(p=>p.stage!=='exit');
+
+export function renderDemandSummary(g,{copy}){
+ const d=getDemandStatus(g),hasFeedback=d.active>0||d.ratings>0;
+ return `<button type="button" class="demand-summary ${tone(d.happiness)}" data-action="panel" data-panel="queue" aria-label="${copy('Happiness and admissions · open waiting list','Zufriedenheit und Aufnahme · Warteliste öffnen')}"><span class="mood-icon">${face(d.happiness)}</span><span class="demand-summary-main"><span>${copy('Clinic happiness','Klinikzufriedenheit')}</span><b>${hasFeedback?Math.round(d.happiness)+'%':'—'}</b><small>${statusText(d,copy)} <span aria-hidden="true">↗</span></small></span></button>`;
+}
+
+export function renderDemandDetails(g,{copy,btn}){
+ const d=getDemandStatus(g),patients=activePatients(g),current=patients.length?Math.round(patients.reduce((sum,p)=>sum+patientHappiness(g,p),0)/patients.length):null;
+ const warning=d.paused&&d.reason!=='closed';
+ const reason=d.reason?copy(...reasons[d.reason]):copy('A few appointments at first. Happy patients recommend your clinic; staffed treatment capacity keeps growth manageable.','Am Anfang kommen wenige Termine. Zufriedene Patienten empfehlen die Klinik weiter; besetzte Behandlungsplätze begrenzen das Wachstum.');
+ return `<section class="demand-details"><div class="demand-heading ${warning?'waiting':''}"><span>${warning?'Ⅱ':'◷'}</span><h3>${statusText(d,copy)}</h3></div><p>${reason}</p>${g.admissionsOpen?`<div class="admission-cap"><span>${copy('Patients in care / admission limit','Patienten / Aufnahmegrenze')}</span><b>${d.active} / ${d.limit}</b></div>`:''}<details class="care-explainer"><summary>${copy('Happiness & visit ratings','Zufriedenheit & Bewertungen')} · ${Math.round(d.happiness)}%</summary><div class="mood-stats"><div><small>${copy('Here now','Gerade hier')}</small><b>${current===null?'—':current+'%'}</b></div><div><small>${copy('Visit ratings','Besuchsbewertungen')}</small><b>${d.ratings?Math.round(g.satisfaction)+'%':'—'}</b><span>${d.ratings} ${copy('ratings','Bewertungen')}</span></div></div><p>${copy('Short waits, comfortable seats and cleanliness keep people happy. Treatment outcomes count in their final rating, which also affects reputation and demand.','Kurze Wartezeiten, bequeme Sitze und Sauberkeit halten die Leute zufrieden. Auch der Behandlungserfolg zählt für ihre abschließende Bewertung und damit für Ruf und Nachfrage.')}</p><p>${copy('The clinic happiness score combines current mood with previous visit ratings. Extra space alone does not attract a crowd.','Der Klinikwert verbindet die aktuelle Stimmung mit bisherigen Besuchsbewertungen. Mehr Fläche allein lockt keine Menschenmenge an.')}</p><p>${copy('Reception creates appointments. The next available clinician calls patients in registration order for their department.','Die Rezeption legt Termine an. Der nächste freie Behandler ruft in der Anmeldereihenfolge seiner Abteilung auf.')}</p></details>${g.cleanliness<75?`<p class="care-tip">${copy('Time to clean: a dirty clinic lowers happiness.','Zeit zum Putzen: Eine schmutzige Klinik drückt die Zufriedenheit.')}</p>`:''}${patients.some(p=>p.patience<65)?`<p class="care-tip">${copy('Some patients are losing patience. Check waiting appointments and vacant workplaces below.','Einigen Patienten geht die Geduld aus. Prüfe unten wartende Termine und unbesetzte Arbeitsplätze.')}</p>`:''}${warning||g.cleanliness<75?btn('open-staff',copy('Check the team','Team prüfen'),'secondary full','data-view="team"'):''}</section>`;
+}
+
+export function renderPatientMood(g,record,{copy}){
+ const live=g.patients.find(p=>p.id===record.id),rated=Number.isFinite(record.rating),value=rated?record.rating:live?patientHappiness(g,live):null;
+ if(value===null)return '';
+ return `<section class="patient-mood ${tone(value)}"><span class="mood-icon">${face(value)}</span><div><small>${copy(rated?'Visit rating':'Happiness now',rated?'Besuchsbewertung':'Aktuelle Zufriedenheit')}</small><b>${Math.round(value)}%</b><p>${rated?copy('This rating contributes to your clinic’s reputation and future demand.','Diese Bewertung fließt in Ruf und künftige Nachfrage deiner Klinik ein.'):copy('Waiting time and cleanliness affect mood. Comfortable waiting slows patience loss.','Wartezeit und Sauberkeit beeinflussen die Stimmung. Bequemes Warten schont die Geduld.')}</p></div></section>`;
+}

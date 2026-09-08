@@ -6,6 +6,7 @@ export const PRACTICE_SIZES={
   'newspaper-rack':[.5,.5],'water-dispenser':[.5,.5],
   'coat-rack':[.5,.5],sanitizer:[.25,.25],
   'privacy-screen':[1.5,.25],'glass-partition':[1.5,.25],
+  'cubicle-back':[1.5,.1],'cubicle-side':[.1,1.9],'cubicle-door':[1.3,.1],
   'treatment-trolley':[.75,.5],'waste-bin':[.5,.5],'examination-couch':[1.75,.75]
 };
 
@@ -30,6 +31,55 @@ function cylinder(b,renderer,x,y,r,top,color,base){
     if((s.x-q.x)*orientation<-.00001)renderer.poly([q,s,b.project(...right,top),b.project(...left,top)],shade((s.y-q.y)*orientation>0?-25:-12));
   }
   renderer.poly(points.map(point=>b.project(...point,top)),shade(10));
+}
+
+function cubiclePanel(b,o){
+  const {x,y,w,h,z,kind,part}=o,{soft,wire,dot,project,c,u}=b,side=kind==='cubicle-side',door=kind==='cubicle-door';
+  const top=z||1.18,metal='#9aafa7',edge='#c4d5c8',body=door?'#a9c9bb':side?'#b7cec2':'#c5d7c8';
+  const length=side?h:w;
+  // Small visible feet support genuinely opaque panels; the open space under
+  // them is a foot gap, never translucent glass or a simulated occupancy light.
+  for(const along of [.08,length-.08]){
+    const xx=side?x+w/2:x+along,yy=side?y+along:y+h/2;
+    soft(xx-.025,yy-.025,.05,.05,.20,metal,.025,.018);
+    soft(xx-.04,yy-.04,.08,.08,.043,'#c8d3c5',.021,.025);
+  }
+  soft(x+.009,y+.009,w-.018,h-.018,top-.025,body,.13,.018);
+  soft(x+.003,y+.003,w-.006,h-.006,top,edge,top-.032,.022);
+  if(side){
+    for(const yy of [y+.018,y+h-.05])soft(x+.008,yy,w-.016,.032,top-.012,metal,.11,.01);
+    // Hooks belong to the inside face of each side wall, and disappear behind
+    // the panel when that face turns away from the camera.
+    const interior=part==='left'?1:-1,axis=project(x+1,y),origin=project(x,y);
+    if((axis.y-origin.y)*interior>0){
+      const xx=x+(interior>0?w+.004:-.004),yy=y+h*.70;
+      wire([[xx,yy,.94],[xx+interior*.046,yy,.94],[xx+interior*.046,yy,.985]],'#7e9691',.019);
+      dot(xx,yy,.94,.022,.026,edge);
+    }
+    return;
+  }
+  const front=b.frontFacing,fy=front?y+h+.003:y-.003;
+  const surface=(xx,zz,ww,hh,color,radius=.018)=>{
+    const q=project(xx,fy,zz),axis=project(xx+1,fy,zz);c.save();
+    c.transform(axis.x-q.x,axis.y-q.y,0,-u,q.x,q.y);c.fillStyle=color;c.beginPath();c.roundRect(0,0,ww,hh,radius);c.fill();c.restore();
+  };
+  if(!door){surface(x+.08,.20,w-.16,.80,'#ccdbcf',.025);return;}
+  // Jambs, door leaf and a narrow real seam make this read as a closed cubicle.
+  for(const xx of [x+.005,x+w-.055])soft(xx,y+.004,.05,h-.008,top-.012,metal,.075,.012);
+  surface(x+.078,.158,w-.156,top-.225,front?'#b9d3c4':'#c4d9cb',.025);
+  wire([[x+.065,fy,.16],[x+.065,fy,top-.053]],'#819e95',.011);
+  wire([[x+w-.065,fy,.16],[x+w-.065,fy,top-.053]],'#819e95',.009);
+  for(const zz of [.30,.86])surface(x+.046,zz,.034,.10,'#dce4d7',.006);
+  const handle=x+w-.17;surface(handle-.033,.52,.065,.14,'#e5e8d8',.017);
+  wire([[handle,fy+(front?.009:-.009),.61],[handle-.087,fy+(front?.009:-.009),.61]],'#657f78',.026);
+  if(front){
+    surface(x+w*.5-.17,.82,.34,.20,'#f3edcf',.028);
+    const q=project(x+w*.5,fy+.004,.855),axis=project(x+w*.5+1,fy+.004,.855);
+    c.save();c.transform(axis.x-q.x,axis.y-q.y,0,u,q.x,q.y);c.fillStyle='#537b70';c.font='700 .12px sans-serif';c.textAlign='center';c.fillText('WC',0,0);c.restore();
+    for(let i=0;i<4;i++)surface(x+.27,.24+i*.035,w-.54,.012,'#85a89a',.006);
+  }else{
+    wire([[x+w*.55,fy,.85],[x+w*.55,fy-.055,.85],[x+w*.55,fy-.055,.91]],'#829b91',.021);
+  }
 }
 
 // A purchase's simulation progress is the only clock for vending movement.
@@ -147,7 +197,9 @@ export function drawCounterDesign(b,o){
 export function drawPracticeObject(b,renderer,room,o,time){
   const {x,y,w,h,kind}=o,{soft,wire,dot,face,paper,c,u,project,palette:p}=b;
   const activity=['gum-machine','snack-machine','drink-machine'].includes(kind)?amenityActivity(renderer.game,room.id,o.furnitureId):null;
-  if(kind==='writing-desk'){
+  if(['cubicle-back','cubicle-side','cubicle-door'].includes(kind)){
+    cubiclePanel(b,o);
+  }else if(kind==='writing-desk'){
     for(const xx of [x+.08,x+w-.14])for(const yy of [y+.075,y+h-.13])soft(xx,yy,.055,.055,.55,'#7d7865',.035,.018);
     soft(x+.07,y+.055,.39,h-.1,.52,'#aa8a67',.08,.035);
     for(let i=0;i<3;i++){

@@ -7,6 +7,7 @@ import {waitingSeats,waitingComfort} from './objects.js';
 import {insidePath,patientPoint,segmentBlocked} from './layout.js';
 import * as furnishing from './furnishing.js';
 import {BASE_GRID,gridFor,expand} from './expansion.js';
+import {DEMAND,getDemandStatus,admitPatient,reviewVisit} from './demand.js';
 export const GRID=BASE_GRID;
 export const ENTRY={x:12,y:16};
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -14,13 +15,15 @@ const key=(x,y)=>`${x},${y}`;
 const names=['Alex','Sam','Robin','Jamie','Casey','Lou','Charlie','River','Jules','Taylor','Kim','Morgan','Rene','Ari','Noor','Sasha','Drew','Billie'];
 export class Game {
  constructor({level=1,mode='tutorial',seed=Date.now()}={}){
-  this.expansions=[];
+  this.expansions=[];this.satisfaction=75;this.ratings=0;
   this.version=6;this.queueSerial=0;this.callSerial=0;this.calls=[];this.recruitmentRound=0;this.applicantIds=candidates(0).map(c=>c.id);this.mode=mode;this.level=level;this.rng=seed>>>0||1;this.clock=0;this.day=1;this.cash=50000;
   this.rep=60;this.cured=0;this.failed=0;this.left=0;this.cleanliness=95;this.rooms=[];this.staff=[];this.patients=[];this.logs=[];this.id=0;this.income=0;this.expenses=0;this.construction=0;this.completed=[];this.project=null;this.event=null;this.nextEvent=75;this.arrivalTimer=4;this.won=false;this.over=false;this.ledger=[];
   this.amenitySales={count:0,revenue:0,costs:0};this.admissionsOpen=false;this.calendar=0;this.year=1;this.month=1;this.yearStart={income:0,expenses:0,construction:0};this.accountOrigin={income:0,expenses:0,construction:0};this.financialYears=[];this.records=[];this.patientSerial=0;this.tutorial={chartRead:false};this.contracts=[];this.financing=0;this.modifiers=[];this.eventsSeen=[];this.curedByRoom={};
  }
  get grid(){return gridFor(this.expansions);}
  expand(id){return expand(this,id);}
+ demandStatus(){return getDemandStatus(this);}
+ admitPatient(illnessId){return admitPatient(this,illnessId);}
  checkTutorial(){if(this.mode==='tutorial'&&!this.won&&guideIndex(this)>=GUIDE.length-1&&this.financialYears.some(y=>y.profit>=ANNUAL_TARGET)){this.won=true;this.log('completedTutorial');}}
  guide(){
   if(this.mode!=='tutorial'||this.won)return null;
@@ -41,7 +44,7 @@ export class Game {
  placeStaff(id,roomId,point){return placeStaff(this,id,roomId,point);}
  canPickUpStaff(id){return canPickUpStaff(this,id);}
 
- openClinic(){for(const type of ['reception','gp','pharmacy'])if(!this.rooms.some(r=>r.type===type&&r.staffId&&this.roomReady(r)))return {error:'openingRequirements'};this.admissionsOpen=true;this.arrivalTimer=1;this.log('clinicOpened');return {};}
+ openClinic(){for(const type of ['reception','gp','pharmacy'])if(!this.rooms.some(r=>r.type===type&&r.staffId&&this.roomReady(r)))return {error:'openingRequirements'};this.admissionsOpen=true;this.arrivalTimer=DEMAND.firstArrival;this.log('clinicOpened');return {};}
  yearlyProfit(){return (this.income-this.yearStart.income)-(this.expenses-this.yearStart.expenses)-(this.construction-this.yearStart.construction);}
  annualReport(){return {year:this.year,income:this.income-this.yearStart.income,expenses:this.expenses-this.yearStart.expenses,construction:this.construction-this.yearStart.construction,profit:this.yearlyProfit()};}
  closeYear(){const report=this.annualReport();this.financialYears.push({...report,closingCash:this.cash});this.checkTutorial();this.yearStart={income:this.income,expenses:this.expenses,construction:this.construction};this.year++;this.log('yearClosed',String(report.profit));}
@@ -114,8 +117,8 @@ export class Game {
   if(c.effect==='paperwork')this.modifiers.push({kind:'paperwork',endsAt:this.clock+60});
   if(c.effect==='inspectionClean'){this.cleanliness=100;this.rep=clamp(this.rep+3,0,100);}
   if(c.effect==='inspectionCheck')this.rep=clamp(this.rep+(this.cleanliness>=85?2:-5),0,100);
-  if(c.effect==='beautyRush')for(let i=0;i<5;i++)this.spawnPatient('funny');
-  if(c.effect==='energy')this.staff.forEach(s=>s.fatigue=clamp(s.fatigue-35,0,100));if(c.effect==='fatigue')this.staff.forEach(s=>s.fatigue=clamp(s.fatigue+20,0,100));if(c.effect==='rep')this.rep=clamp(this.rep+5,0,100);if(c.effect==='quality')this.rep=clamp(this.rep+(this.cleanliness>75?3:-2),0,100);if(c.effect==='refer')this.rep=clamp(this.rep-3,0,100);if(c.effect==='rush')for(let i=0;i<6;i++)this.spawnPatient('jitters');this.eventsSeen.push(this.event);this.event=null;return {};
+  if(c.effect==='beautyRush')for(let i=0;i<5;i++)this.admitPatient('funny');
+  if(c.effect==='energy')this.staff.forEach(s=>s.fatigue=clamp(s.fatigue-35,0,100));if(c.effect==='fatigue')this.staff.forEach(s=>s.fatigue=clamp(s.fatigue+20,0,100));if(c.effect==='rep')this.rep=clamp(this.rep+5,0,100);if(c.effect==='quality')this.rep=clamp(this.rep+(this.cleanliness>75?3:-2),0,100);if(c.effect==='refer')this.rep=clamp(this.rep-3,0,100);if(c.effect==='rush')for(let i=0;i<6;i++)this.admitPatient('jitters');this.eventsSeen.push(this.event);this.event=null;return {};
  }
  patientAge(){const roll=this.random();return roll<.23?4+Math.floor(roll/.23*12):18+Math.floor((roll-.23)/.77*68);}
  spawnPatient(illnessId){
@@ -125,7 +128,7 @@ export class Game {
   const surname=['Bennett','Keller','Navarro','Wagner','Okafor','Hart','Nguyen','Weber','Moreno','Reed','Baumann','Brooks'][Math.floor(this.random()*12)];
   const name=names[Math.floor(this.random()*names.length)]+' '+surname,age=this.patientAge(),serial=++this.patientSerial;
   const p={id:++this.id,name,illness,age,child:age<16,queueOrder:0,calledAt:null,x:ENTRY.x+(this.random()-.5)*.25,y:ENTRY.y,stage:'reception',state:'waiting',patience:100,targetRoom:null,path:[],seatRoom:null,seatIndex:null,registered:false,variant:Math.floor(this.random()*3),color:['#d39360','#568f9a','#b887b8'][serial%3],skin:['#eec3a1','#bd865e','#815640'][serial%3],hair:['#3e3836','#81533b','#9fa1a7'][serial%3]};
-  this.records.push({id:p.id,number:'CG-'+String(serial).padStart(5,'0'),name,age,birthDate:`${2026+this.year-1-age}-${String(1+Math.floor(this.random()*12)).padStart(2,'0')}-${String(1+Math.floor(this.random()*28)).padStart(2,'0')}`,occupation:((roll)=>age<16?(age<6?7:6):Math.floor(roll*6))(this.random()),insurance:Math.floor(this.random()*3),allergy:Math.floor(this.random()*4),priority:serial%7===0?'priorityUrgent':'priorityRoutine',illness,variant:p.variant,admittedAt:this.clock,admittedYear:this.year,admittedMonth:this.month,dischargedAt:null,status:'arrived',diagnosed:false,bill:0,diagnosisCharge:0,treatmentCharge:0,outcome:null,timeline:[]});
+  this.records.push({id:p.id,number:'CG-'+String(serial).padStart(5,'0'),name,age,birthDate:`${2026+this.year-1-age}-${String(1+Math.floor(this.random()*12)).padStart(2,'0')}-${String(1+Math.floor(this.random()*28)).padStart(2,'0')}`,occupation:((roll)=>age<16?(age<6?7:6):Math.floor(roll*6))(this.random()),insurance:Math.floor(this.random()*3),allergy:Math.floor(this.random()*4),priority:serial%7===0?'priorityUrgent':'priorityRoutine',illness,variant:p.variant,admittedAt:this.clock,admittedYear:this.year,admittedMonth:this.month,dischargedAt:null,status:'arrived',diagnosed:false,bill:0,diagnosisCharge:0,treatmentCharge:0,outcome:null,rating:null,timeline:[]});
   initAmenities(p,this.clock);this.patients.push(p);this.recordEvent(p,'arrived');return p;
  }
 
@@ -162,7 +165,7 @@ export class Game {
   if(!choices.length){p.targetRoom=null;if(p.registered)this.reserveSeat(p);return;}
   const {r,path}=choices[0],busy=p.registered||r.patientId||this.queue(r)>0;p.targetRoom=r.id;p.path=path;p.state='travel';if(busy&&!this.reserveSeat(p))p.path=this.standingPoint(r,p).path;
  }
- leave(p,abandoned=false){cancelAmenity(p,this.clock);const path=this.corridorPath(p,ENTRY)||[];const r=this.room(p.targetRoom);if(r?.patientId===p.id){r.patientId=null;r.progress=0;}if(abandoned){const record=this.record(p.id);if(record)record.outcome='left';this.recordEvent(p,'left');this.left++;this.rep=clamp(this.rep-2,0,100);this.log('left',p.name);}p.stage='exit';p.targetRoom=null;p.seatRoom=null;p.seatIndex=null;p.state='exit';p.path=path;}
+ leave(p,abandoned=false){cancelAmenity(p,this.clock);const path=this.corridorPath(p,ENTRY)||[];const r=this.room(p.targetRoom);if(r?.patientId===p.id){r.patientId=null;r.progress=0;}if(abandoned){const record=this.record(p.id);if(record)record.outcome='left';this.recordEvent(p,'left');this.left++;this.log('left',p.name);}p.stage='exit';p.targetRoom=null;p.seatRoom=null;p.seatIndex=null;p.state='exit';p.path=path;}
  move(p,dt,pace=2.5){
   let distance=dt*pace;
   while(distance>0&&p.path.length){
@@ -195,7 +198,7 @@ export class Game {
    if(r.progress>=ROOMS[r.type].time){r.progress=0;p.state='roomExit';p.path=this.exitPath(r,p);
     if(p.stage==='reception'){p.registered=true;p.queueOrder=++this.queueSerial;this.recordEvent(p,'registered',r);p.stage='diagnosis';}
     else if(p.stage==='diagnosis'){const fee=this.diagnosisFee();this.cash+=fee;this.income+=fee;this.recordEvent(p,'diagnosed',r,fee);p.stage='treatment';p.queueOrder=++this.queueSerial;}
-    else {const illness=ILLNESSES.find(i=>i.id===p.illness);const supplies=this.mode==='tutorial'?350:35;this.cash-=supplies;this.expenses+=supplies;if(this.random()<this.success(r)){const earned=this.treatmentFee(p,r);this.recordEvent(p,'cured',r,earned);const record=this.record(p.id);if(record)record.outcome='cured';this.cash+=earned;this.income+=earned;this.cured++;this.curedByRoom[r.type]=(this.curedByRoom[r.type]||0)+1;this.rep=clamp(this.rep+.9+(p.patience>70?.25:0),0,100);p.cured=true;this.log('cure',p.name);}else{this.recordEvent(p,'failed',r);const record=this.record(p.id);if(record)record.outcome='failed';this.failed++;this.rep=clamp(this.rep-1,0,100);this.log('failed',p.name);}p.stage='exit';}
+    else {const illness=ILLNESSES.find(i=>i.id===p.illness);const supplies=this.mode==='tutorial'?350:35;this.cash-=supplies;this.expenses+=supplies;if(this.random()<this.success(r)){const earned=this.treatmentFee(p,r);this.recordEvent(p,'cured',r,earned);const record=this.record(p.id);if(record)record.outcome='cured';this.cash+=earned;this.income+=earned;this.cured++;this.curedByRoom[r.type]=(this.curedByRoom[r.type]||0)+1;p.cured=true;this.log('cure',p.name);}else{this.recordEvent(p,'failed',r);const record=this.record(p.id);if(record)record.outcome='failed';this.failed++;this.log('failed',p.name);}p.stage='exit';}
    }
   }
   for(const p of this.patients){if(p.state==='called'){if(this.clock-p.calledAt>=.65){const r=this.room(p.targetRoom);p.state='inside';p.path=this.routeInto(p,r,this.servicePoint(r))||[];}continue;}if(p.state==='roomExit'){this.move(p,dt);if(!p.path.length){const r=this.room(p.targetRoom);if(r){r.patientId=null;r.progress=0;}p.targetRoom=null;if(p.stage==='exit')this.leave(p);else p.state='waiting';}continue;}if(p.state==='exit'){this.move(p,dt);continue;}
@@ -208,11 +211,11 @@ export class Game {
    if(p.state==='queue'&&Math.floor(this.clock*2)!==Math.floor((this.clock-dt)*2))this.reserveSeat(p);
    if(['queue','seated','seatTravel','travel'].includes(p.state)&&!this.room(p.targetRoom)?.staffId){if(p.registered&&p.seatRoom!==null){p.targetRoom=null;}else{const wr=this.room(p.seatRoom);p.path=wr?this.corridorPath(p,this.door(wr))||[]:[];p.state=p.path.length?'relocating':'waiting';p.seatRoom=null;p.seatIndex=null;p.targetRoom=null;}}
   }
-  for(const p of this.patients)if(p.state==='exit'&&!p.path.length){const record=this.record(p.id);if(record){record.dischargedAt=this.clock;this.recordEvent(p,'discharged');}}
+  for(const p of this.patients)if(p.state==='exit'&&!p.path.length){const record=this.record(p.id);if(record){record.dischargedAt=this.clock;this.recordEvent(p,'discharged');reviewVisit(this,p);}}
   this.patients=this.patients.filter(p=>!(p.state==='exit'&&!p.path.length));
   if(this.project){const lab=this.rooms.find(r=>r.type==='lab'&&this.staffReady(this.staff.find(s=>s.id===r.staffId)));if(lab){this.project.progress+=dt*(this.staff.find(s=>s.id===lab.staffId)?.skill||1)*(1+(lab.level-1)*.3);const project=PROJECTS.find(p=>p.id===this.project.id);if(this.project.progress>=project.time){this.completed.push(project.id);this.project=null;this.log('researchDone',project.id);}}}
   this.updateRenovations();
-  this.arrivalTimer-=dt;if(this.arrivalTimer<=0){this.spawnPatient();this.arrivalTimer=(this.mode==='tutorial'?8:this.mode==='sandbox'?8:LEVELS[this.level-1].arrival)*(.85+this.random()*.3);}
+  const demand=getDemandStatus(this);if(demand.paused)this.arrivalTimer=Math.max(DEMAND.resumeDelay,this.arrivalTimer);else{this.arrivalTimer-=dt;if(this.arrivalTimer<=0){this.admitPatient();this.arrivalTimer=demand.interval;}}
   if(this.clock>=this.nextEvent&&(this.mode!=='tutorial'||guideIndex(this)>=GUIDE.length-1)){const options=EVENTS.filter(e=>(!e.minLevel||this.mode==='sandbox'||this.level>=e.minLevel)&&!(e.id==='mafia'&&this.contracts.length));this.event=options[Math.floor(this.random()*options.length)].id;this.nextEvent=this.clock+95+this.random()*30;}
   if(this.mode==='campaign'&&!this.won){const target=LEVELS[this.level-1];if(this.storyGoalsMet()){this.won=true;this.log('completed');}}
   if(this.cash< -5000||this.rep<=0)this.over=true;
@@ -231,6 +234,7 @@ export class Game {
   if(!data||![5,6].includes(data.version)||!['tutorial','campaign','sandbox'].includes(data.mode)||![1,2,3].includes(data.level))throw Error('Invalid save');
   if(!Object.hasOwn(data,'expansions'))data={...data,expansions:[]};
   const grid=gridFor(data.expansions);
+  if(!Object.hasOwn(data,'satisfaction')&&!Object.hasOwn(data,'ratings')||data.records?.some(r=>!Object.hasOwn(r,'rating'))){data=JSON.parse(JSON.stringify(data));if(!Object.hasOwn(data,'satisfaction')&&!Object.hasOwn(data,'ratings')){data.satisfaction=75;data.ratings=0;}for(const r of data.records||[])if(!Object.hasOwn(r,'rating'))r.rating=null;}
   // Older schema-six saves have no shop history; incomplete new histories still fail validation.
   if(!Object.hasOwn(data,'amenitySales')||data.patients?.some(p=>['amenity','amenityPurchased','amenityNextAt'].every(k=>!Object.hasOwn(p,k)))){
    data=JSON.parse(JSON.stringify(data));data.amenitySales??={count:0,revenue:0,costs:0};
@@ -250,7 +254,7 @@ export class Game {
   for(const p of data.patients){if(p.name.length>80||p.x<0||p.x>grid.w-1||p.y<0||p.y>grid.h-1||p.patience<0||p.patience>100)throw Error('Invalid patient bounds');if(p.targetRoom!==null&&!data.rooms.some(r=>r.id===p.targetRoom))throw Error('Invalid target');if(['called','inside','service','roomExit'].includes(p.state)&&!data.rooms.some(r=>r.id===p.targetRoom&&r.patientId===p.id))throw Error('Invalid service');}
   for(let i=0;i<data.rooms.length;i++)for(let j=i+1;j<data.rooms.length;j++){const a=data.rooms[i],b=data.rooms[j];if(a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y)throw Error('Overlapping rooms');}
   if(data.logs.length>12||!data.logs.every(l=>isNum(l.id)&&isNum(l.time)&&typeof l.code==='string'&&typeof l.extra==='string'))throw Error('Invalid log');
-  const fields=['expansions','amenitySales','queueSerial','callSerial','calls','version','mode','level','rng','clock','day','cash','rep','cured','failed','left','cleanliness','rooms','staff','patients','logs','id','income','expenses','construction','completed','project','event','nextEvent','arrivalTimer','won','over','ledger','admissionsOpen','calendar','year','month','yearStart','accountOrigin','financialYears','records','patientSerial','tutorial','contracts','financing','modifiers','eventsSeen','curedByRoom','recruitmentRound','applicantIds'];
+  const fields=['satisfaction','ratings','expansions','amenitySales','queueSerial','callSerial','calls','version','mode','level','rng','clock','day','cash','rep','cured','failed','left','cleanliness','rooms','staff','patients','logs','id','income','expenses','construction','completed','project','event','nextEvent','arrivalTimer','won','over','ledger','admissionsOpen','calendar','year','month','yearStart','accountOrigin','financialYears','records','patientSerial','tutorial','contracts','financing','modifiers','eventsSeen','curedByRoom','recruitmentRound','applicantIds'];
   if(typeof data.admissionsOpen!=='boolean'||!isNum(data.calendar)||data.calendar<0||!Number.isInteger(data.year)||data.year<1||!Number.isInteger(data.month)||data.month<1||data.month>12||!Number.isInteger(data.patientSerial)||data.patientSerial<0||typeof data.tutorial?.chartRead!=='boolean')throw Error('Invalid calendar');
   if(!data.yearStart||!['income','expenses','construction'].every(k=>isNum(data.yearStart[k]))||!Array.isArray(data.financialYears)||!data.financialYears.every(y=>['year','income','expenses','construction','profit','closingCash'].every(k=>isNum(y[k]))))throw Error('Invalid accounts');
   const period=Math.floor((data.calendar+1e-7)/MONTH_SECONDS);if(data.day!==period+1||data.month!==period%12+1||data.year!==Math.floor(period/12)+1||data.financialYears.length!==data.year-1)throw Error('Inconsistent calendar');
@@ -260,6 +264,7 @@ export class Game {
   const sales=data.amenitySales;if(!sales||!['count','revenue','costs'].every(k=>Number.isSafeInteger(sales[k])&&sales[k]>=0)||sales.count>data.patientSerial||sales.costs>sales.revenue||sales.revenue>data.income||sales.costs>data.expenses||sales.count<data.patients.filter(p=>p.amenityPurchased===true).length)throw Error('Invalid vending accounts');
   if(!Array.isArray(data.records)||data.records.length>20000)throw Error('Invalid records');
   if(!data.ledger.every(l=>Number.isInteger(l.day)&&l.day>=1&&l.day<=12&&Number.isInteger(l.year)&&l.year>=1&&isNum(l.cost)&&l.cost>=0))throw Error('Invalid monthly ledger');
+  if(!isNum(data.satisfaction)||data.satisfaction<0||data.satisfaction>100||!Number.isSafeInteger(data.ratings)||data.ratings<0||data.ratings!==data.records.filter(r=>r.rating!==null).length||data.records.some(r=>r.rating!==null&&(!isNum(r.rating)||r.rating<0||r.rating>100||r.dischargedAt===null||!r.outcome)))throw Error('Invalid patient reviews');
   const recordIds=new Set();for(const record of data.records){if(!Number.isInteger(record.id)||recordIds.has(record.id)||typeof record.name!=='string'||record.name.length>100||typeof record.number!=='string'||!ILLNESSES.some(i=>i.id===record.illness)||!['age','admittedAt','bill','diagnosisCharge','treatmentCharge'].every(k=>isNum(record[k]))||!Array.isArray(record.timeline)||record.timeline.length>100||!record.timeline.every(e=>isNum(e.time)&&typeof e.code==='string'&&typeof e.staffName==='string'&&isNum(e.amount)))throw Error('Invalid chart');recordIds.add(record.id);}
   const numbers=new Set();let maxSerial=0;for(const record of data.records){if(numbers.has(record.number)||!/^CG-(?:L)?\d+$/.test(record.number)||typeof record.birthDate!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(record.birthDate)||!['cured','failed','left',null].includes(record.outcome)||typeof record.diagnosed!=='boolean'||!['occupation','insurance','allergy','variant','admittedYear','admittedMonth'].every(k=>Number.isInteger(record[k]))||record.dischargedAt!==null&&!isNum(record.dischargedAt))throw Error('Invalid chart identity');numbers.add(record.number);maxSerial=Math.max(maxSerial,Number(record.number.replace(/\D/g,'')));if(data.rooms.some(r=>r.id===record.id)||data.staff.some(s=>s.id===record.id))throw Error('Chart id collision');}
   for(const record of data.records){if(!['priorityRoutine','priorityUrgent'].includes(record.priority)||record.occupation<0||record.occupation>7||record.insurance<0||record.insurance>2||record.allergy<0||record.allergy>3||record.variant<0||record.variant>2||record.age<0||record.age>120||record.admittedYear<1||record.admittedMonth<1||record.admittedMonth>12||Math.abs(record.bill-record.diagnosisCharge-record.treatmentCharge)>.001)throw Error('Invalid patient details');for(const event of record.timeline){if(!Number.isInteger(event.year)||event.year<1||!Number.isInteger(event.month)||event.month<1||event.month>12||event.roomType!==null&&!Object.hasOwn(ROOMS,event.roomType)||event.roomId!==null&&!Number.isInteger(event.roomId)||!['arrived','registered','diagnosed','called','serviceStarted','cured','failed','left','discharged','legacyRecord'].includes(event.code))throw Error('Invalid care timeline');}}
