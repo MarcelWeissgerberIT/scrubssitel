@@ -23,6 +23,20 @@ export const OBJECT_INFO={
  cabinet:[['Extremely organized cupboard','Höchst organisierter Schrank'],['Decorative storage for supplies. The drawer marked miscellaneous contains everything.','Dekorativer Vorratsschrank. In der Schublade Sonstiges liegt alles.']]
 };
 
+Object.assign(OBJECT_INFO,{
+ 'counter-round':[['Round welcome desk','Runder Empfangstresen'],['A curved oak reception workplace with chair, computer and bell. An alternative to the classic desk.','Ein geschwungener Empfangsplatz aus Holz mit Stuhl, Computer und Glocke. Alternative zum klassischen Tresen.']],
+ 'counter-modern':[['Bright welcome desk','Heller Empfangstresen'],['A clean, modern reception workplace. Same registration service, a different look for your practice.','Ein heller, moderner Empfangsplatz. Gleiche Anmeldung, ein anderer Look für deine Praxis.']],
+ 'pharmacy-counter':[['Dispensing counter','Apothekentresen'],['A staffed pharmacy treatment station with a medicine shelf. Replaces the Decaf 3000; both sides must stay accessible.','Ein Behandlungsplatz für die Pflegekraft mit Medikamentenregal. Ersetzt den Entkoffeinator; beide Seiten müssen erreichbar bleiben.']],
+ 'writing-desk':[['Paperwork desk','Schreibtisch'],['A wooden desk for the paperwork that mysteriously multiplies overnight. Decorative; the room’s treatment station remains required.','Holztisch für Papierkram, der sich nachts geheimnisvoll vermehrt. Dekoration; der Behandlungsplatz bleibt erforderlich.']],
+ 'round-table':[['Round discussion table','Runder Besprechungstisch'],['A round table for meetings that should have been a postcard. Decorative furniture for shared rooms.','Ein runder Tisch für Meetings, die eine Postkarte hätten sein können. Dekoration für Gemeinschaftsräume.']],
+ 'medicine-rack':[['Medicine shelf','Medikamentenregal'],['Colorful boxes, ointments and extremely confident labels. Decorative storage; it does not replace a staffed treatment station.','Bunte Packungen, Salben und sehr selbstbewusste Etiketten. Dekorative Aufbewahrung; ersetzt keinen besetzten Behandlungsplatz.']],
+ 'gum-machine':[['Bubble trouble dispenser','Kaugummiautomat'],['Tiny treats, enormous bubbles. In this waiting room, seated patients lose 5% less patience. One bonus per type; amenities combine up to 15%.','Kleine Kugeln, riesige Blasen. Sitzende Patienten verlieren in diesem Wartebereich 5 % weniger Geduld. Ein Bonus je Typ; Extras zusammen höchstens 15 %.']],
+ 'newspaper-rack':[['Yesterday’s headlines','Zeitungsständer'],['Yesterday’s news is today’s distraction. In a waiting area, seated patients lose 5% less patience. One bonus per type; amenities combine up to 15%.','Nachrichten von gestern lenken heute noch ab. In einem Wartebereich verlieren sitzende Patienten 5 % weniger Geduld. Ein Bonus je Typ; Extras zusammen höchstens 15 %.']],
+ 'water-dispenser':[['Water cooler','Wasserspender'],['Water and the latest clinic gossip. In a waiting area, seated patients lose 5% less patience. One bonus per type; amenities combine up to 15%.','Wasser und der neueste Praxis-Tratsch. In einem Wartebereich verlieren sitzende Patienten 5 % weniger Geduld. Ein Bonus je Typ; Extras zusammen höchstens 15 %.']],
+ 'coat-rack':[['Coat stand','Garderobenständer'],['A decorative home for coats, scarves and one suspicious umbrella. The umbrella is not a doctor.','Ein dekorativer Platz für Jacken, Schals und einen verdächtigen Schirm. Der Schirm ist kein Arzt.']],
+ sanitizer:[['Hand sanitizer stand','Desinfektionsspender'],['A decorative reminder for clean hands. Your janitor still takes care of clinic cleanliness.','Ein dekorativer Hinweis auf saubere Hände. Für die Sauberkeit der Klinik ist weiterhin die Haustechnik zuständig.']]
+});
+
 // Positions in furniture records are local physical floor coordinates. Actors
 // use the same world with a -.5 offset on each axis (the renderer adds it back).
 const ALL=['reception','gp','pharmacy','therapy','surgery','lab','waiting','lounge','toilet'];
@@ -43,6 +57,22 @@ export const FURNITURE={
  poster:{rooms:ALL,w:.5,h:.25,z:1.13,cost:25,wall:true,solids:[],ports:[]},
  clock:{rooms:ALL,w:.25,h:.25,z:1.13,cost:30,wall:true,solids:[],ports:[]}
 };
+for(const [kind,design,cost] of [['counter-round','round',650],['counter-modern','modern',550]]){
+ FURNITURE[kind]={...FURNITURE.counter,cost,fulfills:['counter'],parts:FURNITURE.counter.parts.map(part=>({...part,...(part.kind==='counter'?{design}:{})}))};
+}
+Object.assign(FURNITURE,{
+ 'pharmacy-counter':{rooms:['pharmacy'],w:2,h:1.5,z:1.1,cost:850,fulfills:['pharmacy'],solids:[{part:'counter',x:0,y:.75,w:2,h:.75},{part:'shelf',x:0,y:0,w:.5,h:.5}],ports:[{kind:'work',x:1,y:.25,lookYaw:0},{kind:'patient',x:1,y:1.75,lookYaw:Math.PI}],parts:[{kind:'counter',design:'dispensary',part:'counter',x:0,y:.75,w:2,h:.75,z:.57},{kind:'medicine-rack',part:'shelf',x:0,y:0,w:.5,h:.5,z:1.1}]},
+ 'writing-desk':{rooms:['reception','gp','pharmacy','therapy','surgery','lab'],w:1.5,h:.75,z:.65,cost:240,solids:solid(1.5,.75),ports:[{kind:'use',x:.75,y:1,lookYaw:Math.PI}]},
+ 'round-table':{rooms:['waiting','lounge','reception','therapy'],w:1,h:1,z:.6,cost:160,solids:solid(1,1),ports:[]},
+ 'medicine-rack':{rooms:['pharmacy','gp','surgery','lab'],w:.75,h:.5,z:1.1,cost:180,solids:solid(.75,.5),ports:[{kind:'use',x:.375,y:.75,lookYaw:Math.PI}]},
+ 'gum-machine':{rooms:['waiting','reception','lounge'],w:.5,h:.5,z:1.05,cost:130,comfort:.05,solids:solid(.5,.5),ports:[{kind:'use',x:.25,y:.75,lookYaw:Math.PI}]},
+ 'newspaper-rack':{rooms:['waiting','reception','lounge'],w:.5,h:.5,z:.8,cost:95,comfort:.05,solids:solid(.5,.5),ports:[{kind:'use',x:.25,y:.75,lookYaw:Math.PI}]},
+ 'water-dispenser':{rooms:ALL,w:.5,h:.5,z:1.1,cost:160,comfort:.05,solids:solid(.5,.5),ports:[{kind:'use',x:.25,y:.75,lookYaw:Math.PI}]},
+ 'coat-rack':{rooms:ALL,w:.5,h:.5,z:1.2,cost:75,solids:solid(.5,.5),ports:[]},
+ sanitizer:{rooms:ALL,w:.25,h:.25,z:1,cost:60,solids:solid(.25,.25),ports:[]}
+});
+export function satisfiesRequirement(kind,required){return kind===required||!!FURNITURE[kind]?.fulfills?.includes(required);}
+export function waitingComfort(room){if(room?.type!=='waiting')return 1;const kinds=new Set((room.furniture||[]).map(item=>item.kind));return 1-Math.min(.15,[...kinds].reduce((sum,kind)=>sum+(FURNITURE[kind]?.comfort||0),0));}
 for(const [kind,spec] of Object.entries(FURNITURE)){spec.name={en:OBJECT_INFO[kind][0][0],de:OBJECT_INFO[kind][0][1]};spec.desc={en:OBJECT_INFO[kind][1][0],de:OBJECT_INFO[kind][1][1]};if(spec.ports.some(p=>p.kind==='work'))spec.maxCount=1;}
 export function requirements(type){const kinds=type==='reception'?['counter']:['gp','pharmacy','therapy','surgery','lab'].includes(type)?[type]:['waiting','lounge'].includes(type)?['seat']:type==='toilet'?['toilet','sink']:[];return kinds.map(kind=>({kind,need:1}));}
 export function rotatedSize(spec,rotation=0){return rotation%2?{w:spec.h,h:spec.w}:{w:spec.w,h:spec.h};}
@@ -54,7 +84,7 @@ export function legacyWaitingSeats(r){if(r.type!=='waiting')return [];const out=
 export function waitingSeats(r){if(!Array.isArray(r.furniture))return legacyWaitingSeats(r);return r.type==='waiting'?furniturePorts(r).filter(p=>p.kind==='seat').map((p,index)=>({...p,index})):[];}
 export function roomObjects(r){
  const out=[{id:`${r.id}:door`,roomId:r.id,furnitureId:null,kind:'door',x:r.x+Math.floor(r.w/2),y:r.y<8?r.y+r.h-.06:r.y-.06,w:1,h:.12,z:1.12,rotation:0,frame:null,local:null}];
- for(const f of r.furniture||[]){const spec=FURNITURE[f.kind];if(!spec)continue;const parts=spec.parts||[{kind:f.kind,part:'body',x:0,y:0,w:spec.w,h:spec.h,z:spec.z}];for(const part of parts){const frame={x:r.x+f.x,y:r.y+f.y,w:spec.w,h:spec.h,rotation:f.rotation},local={x:part.x,y:part.y,w:part.w,h:part.h};out.push({...part,...furnitureRect(r,f,part),id:`${r.id}:${f.id}:${part.part}`,roomId:r.id,furnitureId:f.id,rotation:f.rotation,frame,local,canonicalW:part.w,canonicalH:part.h,seats:spec.ports.filter(p=>p.kind==='seat').length||undefined});}}
+ for(const f of r.furniture||[]){const spec=FURNITURE[f.kind];if(!spec)continue;const parts=spec.parts||[{kind:f.kind,part:'body',x:0,y:0,w:spec.w,h:spec.h,z:spec.z}];for(const part of parts){const frame={x:r.x+f.x,y:r.y+f.y,w:spec.w,h:spec.h,rotation:f.rotation},local={x:part.x,y:part.y,w:part.w,h:part.h};out.push({...part,...furnitureRect(r,f,part),id:`${r.id}:${f.id}:${part.part}`,roomId:r.id,furnitureId:f.id,furnitureKind:f.kind,rotation:f.rotation,frame,local,canonicalW:part.w,canonicalH:part.h,seats:spec.ports.filter(p=>p.kind==='seat').length||undefined});}}
  return out;
 }
 export function findObject(game,id){for(const r of game.rooms){const object=roomObjects(r).find(o=>o.id===id);if(object)return object;}return null;}

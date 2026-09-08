@@ -1,5 +1,6 @@
 // Canvas-only furniture. Registry coordinates, seats and simulation state are read-only.
-const KINDS = new Set(['chair','sofa','stool','counter','monitor','bell','cabinet','plant','toys','books','sink','toilet','coffee','gp','pharmacy','surgery','therapy','lab','poster','clock']);
+import {PRACTICE_SIZES,drawPracticeObject,drawCounterDesign} from './practice-art.js';
+const KINDS = new Set(['chair','sofa','stool','counter','monitor','bell','cabinet','plant','toys','books','sink','toilet','coffee','gp','pharmacy','surgery','therapy','lab','poster','clock',...Object.keys(PRACTICE_SIZES)]);
 const tint = (hex, n) => `rgb(${[1,3,5].map(i => Math.max(0, Math.min(255, parseInt(hex.slice(i,i+2),16)+n))).join(',')})`;
 const PALETTES={
   reception:{body:'#286f75',light:'#d1ded1',trim:'#20515d',seat:'#397e83',accent:'#d69e50',wood:'#bb895a',metal:'#94b0aa'},
@@ -13,12 +14,12 @@ const PALETTES={
   toilet:{body:'#8ab2b0',light:'#edf0e0',trim:'#608e8d',seat:'#a6c9bf',accent:'#cbb178',wood:'#c6c7b0',metal:'#b6c9c4'}
 };
 // Detail coordinates use each object's own design space, never the room's origin.
-const DESIGN_SIZE={chair:[.76,.7],sofa:[1.61,.7],stool:[.5,.5],counter:[2,.8],monitor:[.5,.2],bell:[.4,.4],cabinet:[.65,.55],plant:[.4,.4],toys:[1.15,.7],books:[.7,.55],sink:[.65,.55],toilet:[.8,1],coffee:[.7,.6],poster:[.62,.035],clock:[.3,.035]};
+const DESIGN_SIZE={chair:[.76,.7],sofa:[1.61,.7],stool:[.5,.5],counter:[2,.8],monitor:[.5,.2],bell:[.4,.4],cabinet:[.65,.55],plant:[.4,.4],toys:[1.15,.7],books:[.7,.55],sink:[.65,.55],toilet:[.8,1],coffee:[.7,.6],poster:[.62,.035],clock:[.3,.035],...PRACTICE_SIZES};
 function objectSpace(renderer,object){
   const [w,h]=DESIGN_SIZE[object.kind]||[1.65,1.9],sx=object.w/w;
   const sy=(['poster','clock'].includes(object.kind)?Math.min(object.h,.045):object.h)/h,scale=Math.min(1,sx,sy),local=Object.create(renderer);
   const anchor={monitor:.57,bell:.57,poster:.64,clock:.98}[object.kind]||0;
-  const heightScale=['chair','sofa','stool','counter'].includes(object.kind)?1:scale;
+  const heightScale=['chair','sofa','stool','counter','medicine-rack'].includes(object.kind)?1:scale;
   local.project=(x,y,z=0)=>renderer.project(object.x+x*sx,object.y+(object.kind==='monitor'?object.h-y*sy:y*sy),anchor+(z-anchor)*heightScale);
   local.tw=renderer.tw*scale;
   return {renderer:local,object:{...object,x:0,y:0,w,h}};
@@ -138,11 +139,14 @@ export function drawRoomObject(renderer,room,object,time=0) {
   const active=ready&&(room.type==='lab'?!!game.project:!!game.patients?.some(p=>p.id===room.patientId&&p.state==='service'));
   c.save();
   try {
+    if(drawPracticeObject(b,renderer,room,object,time))return true;
     if(['chair','sofa','stool'].includes(kind))upholstered(b,object,kind==='stool');
     else if(['gp','pharmacy','surgery','therapy','lab'].includes(kind))machine(b,renderer,room,object,time,active);
     else if(kind==='counter'){
-      soft(x+.09,y+.06,w-.18,h-.1,.50,palette.body,.06,.13);soft(x,y,w,h,.57,palette.wood,.49,.14);
-      if(b.frontFacing)for(let i=0;i<Math.floor(w/.17)-1;i++)wire([[x+.19+i*.17,y+h-.075,.12],[x+.19+i*.17,y+h-.075,.43]],palette.light,.026);
+      if(!drawCounterDesign(b,object)){
+        soft(x+.09,y+.06,w-.18,h-.1,.50,palette.body,.06,.13);soft(x,y,w,h,.57,palette.wood,.49,.14);
+        if(b.frontFacing)for(let i=0;i<Math.floor(w/.17)-1;i++)wire([[x+.19+i*.17,y+h-.075,.12],[x+.19+i*.17,y+h-.075,.43]],palette.light,.026);
+      }
       paper(x+w-.49,y+.22,.599,.32,.28);soft(x+w-.16,y+.12,.085,.11,.71,'#b19166',.57,.035);wire([[x+w-.12,y+.17,.67],[x+w-.11,y+.16,.82]],'#577f7c',.016);
     }else if(kind==='monitor'){
       const keyboardCenter=object.frame&&object.local?(object.frame.w/2-object.local.x)/(object.local.w/w):w/2;

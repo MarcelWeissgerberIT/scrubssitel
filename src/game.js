@@ -2,7 +2,7 @@ import {initStaff,dispatchStaff,staffReady,updateStaff,repathStaff,requestBreak,
 import {ROOMS, CAST, ILLNESSES, LEVELS, PROJECTS, EVENTS} from './content.js';
 import {MONTH_SECONDS,YEAR_SECONDS,ANNUAL_TARGET,GUIDE,guideIndex} from './tutorial.js';
 import {candidates,candidate,RECRUITMENT_FEE} from './recruitment.js';
-import {waitingSeats} from './objects.js';
+import {waitingSeats,waitingComfort} from './objects.js';
 import {insidePath,patientPoint,segmentBlocked} from './layout.js';
 import * as furnishing from './furnishing.js';
 export const GRID={w:24,h:18};
@@ -182,7 +182,7 @@ export class Game {
    }
   }
   for(const p of this.patients){if(p.state==='called'){if(this.clock-p.calledAt>=.65){const r=this.room(p.targetRoom);p.state='inside';p.path=this.routeInto(p,r,this.servicePoint(r))||[];}continue;}if(p.state==='roomExit'){this.move(p,dt);if(!p.path.length){const r=this.room(p.targetRoom);if(r){r.patientId=null;r.progress=0;}p.targetRoom=null;if(p.stage==='exit')this.leave(p);else p.state='waiting';}continue;}if(p.state==='exit'){this.move(p,dt);continue;}
-   p.patience=clamp(p.patience-dt*(p.state==='service'?.015:.28)*(p.state==='seated'?Math.max(.2,.35-((this.room(p.seatRoom)?.level||1)-1)*.05):1)*(p.child&&p.state==='seated'&&this.room(p.seatRoom)?.furniture.some(o=>o.kind==='toys')?.65:1)*(toilet?(.72-(toilet-1)*.1):1)*(this.completed.includes('patience')?.65:1)*(1+(100-this.cleanliness)/100),0,100);
+   p.patience=clamp(p.patience-dt*(p.state==='service'?.015:.28)*(p.state==='seated'?Math.max(.2,.35-((this.room(p.seatRoom)?.level||1)-1)*.05):1)*(p.state==='seated'?waitingComfort(this.room(p.seatRoom)):1)*(p.child&&p.state==='seated'&&this.room(p.seatRoom)?.furniture.some(o=>o.kind==='toys')?.65:1)*(toilet?(.72-(toilet-1)*.1):1)*(this.completed.includes('patience')?.65:1)*(1+(100-this.cleanliness)/100),0,100);
    if(p.patience<=0&&p.state!=='service'&&p.state!=='inside'){this.leave(p,true);continue;}
    if(p.state==='waiting')this.routePatient(p);
    if(['travel','inside','seatTravel','relocating'].includes(p.state)){this.move(p,dt);if(!p.path.length){const destination=p.state==='inside'?this.servicePoint(this.room(p.targetRoom)):p.state==='seatTravel'?this.seats(this.room(p.seatRoom))[p.seatIndex]:null;if(destination&&Math.hypot(p.x-destination.x,p.y-destination.y)>.08)continue;if(p.state==='inside')this.recordEvent(p,'serviceStarted',this.room(p.targetRoom));p.state={inside:'service',travel:'queue',seatTravel:'seated',relocating:'waiting'}[p.state];}}

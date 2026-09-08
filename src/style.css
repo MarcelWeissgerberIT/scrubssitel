@@ -99,3 +99,66 @@ button{transition:background .15s}.guide-highlight{box-shadow:none!important}.ga
 .furniture-access-legend{display:flex;gap:8px;align-items:center;font-size:11px;line-height:1.4;color:#698569;margin:8px 0 12px}.furniture-access-legend i{width:17px;height:10px;background:#b7e0ab;border:1px solid #48895b;border-radius:50%;flex-shrink:0}
 .tutorial-skip{display:block;padding:10px 11px;margin:0 0 13px;border:1px solid #d4ddcd;border-radius:8px;background:#f5f8ee;color:#64816c;text-align:center;font-size:12px;line-height:1.45;font-weight:500}.shift-sidebar>.tutorial-skip{position:sticky;top:0;z-index:2}.tutorial-skip:hover{background:#eaf1e3;color:#3c6850}.editor-footer .tutorial-skip{margin:7px 0 0;padding:7px;font-size:11px;position:static}.room-editor-open .tutorial-skip{pointer-events:auto;opacity:1}
 @media(max-width:700px){.tutorial-skip{padding:7px 9px;font-size:11px;margin-bottom:8px}.editor-footer .tutorial-skip{font-size:10px;padding:6px 4px}}
+
+/* Append to the existing style sheet; the existing candidate/team card styles remain. */
+.staff-view-tabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:0 18px 14px;border-bottom:1px solid var(--line);flex-shrink:0}
+.staff-view-button{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:10px 8px;border:1px solid #cbd8c9;border-radius:10px;background:#f0f3e8;font-weight:700;font-size:13px;color:#456454}
+.staff-view-button.active{background:#315e52;border-color:#315e52;color:#fffdf2}
+.staff-tab-count{display:inline-grid;place-items:center;min-width:23px;height:23px;padding:0 5px;border-radius:12px;background:#dde7d6;font-size:11px;color:#345647}
+.staff-view-button.active .staff-tab-count{background:#dfe9b1;color:#2e5141}
+.staff-panel-content>.recruit-label{margin-top:0}
+.staff-panel-content>.recruit-tabs{margin:10px 0 12px}
+.staff-panel-content>.panel-intro{margin-bottom:12px}
+.staff-empty{display:grid;gap:13px;padding:15px 0;text-align:left}
+.staff-empty p{color:#67756c;font-size:13px;line-height:1.55}
+
+#game-menu{position:absolute;left:18px;bottom:18px;z-index:24;pointer-events:none;--wheel-size:min(420px,92vw,calc(100dvh - 124px))}
+#game-menu button{pointer-events:auto;touch-action:manipulation}
+#game-menu svg{display:block;width:27px;height:27px;flex:none}
+.game-menu-toggle,.game-menu-close{position:relative;display:grid;place-items:center;border-radius:50%;background:#315f50;color:#fff9dc;border:2px solid #e6edbc;box-shadow:0 6px 20px #203f3933}
+.game-menu-toggle{width:62px;height:62px}
+.game-menu-toggle svg{width:32px!important;height:32px!important}
+.game-menu-wheel{position:relative;width:var(--wheel-size);height:var(--wheel-size);border-radius:50%;background:#fafaf0f5;border:1px solid #cbd8be;box-shadow:0 15px 45px #263e3b35;backdrop-filter:blur(7px);animation:game-wheel-enter .2s ease-out}
+.game-menu-wheel:before{content:"";position:absolute;inset:22%;border:1px solid #d9e1ca;border-radius:50%;background:#e9eedc66}
+.game-menu-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;pointer-events:none}
+.game-menu-close{width:40px;height:40px;box-shadow:none}
+.game-menu-close svg{width:20px!important;height:20px!important}
+.game-menu-center strong{font-size:13px;line-height:1.15;max-width:90px;text-align:center;color:#315749}
+.game-menu-orbit{position:absolute;left:50%;top:50%;display:grid;place-items:center;width:clamp(42px,calc(var(--wheel-size)*.135),56px);height:clamp(42px,calc(var(--wheel-size)*.135),56px);border-radius:50%;border:1px solid #c8d7be;background:#fffdf4;color:#355e50;box-shadow:0 3px 9px #294a3914;--menu-radius:calc(var(--wheel-size)*-.39);transform:translate(-50%,-50%) rotate(var(--menu-angle)) translateY(var(--menu-radius)) rotate(var(--menu-counter-angle));animation:game-orbit-enter .24s cubic-bezier(.2,.7,.3,1) both;animation-delay:var(--menu-delay)}
+.game-menu-category{width:clamp(39px,calc(var(--wheel-size)*.12),50px);height:clamp(39px,calc(var(--wheel-size)*.12),50px);--menu-radius:calc(var(--wheel-size)*-.205);background:#e1e9d2;box-shadow:none}
+.game-menu-category.active{background:#315f50;border-color:#315f50;color:#fff7d3}
+.game-menu-category svg{width:24px!important;height:24px!important}
+.game-menu-orbit:hover,.game-menu-orbit:focus-visible{background:#ebefce;box-shadow:0 4px 13px #294a392a;z-index:3}
+.game-menu-category.active:hover,.game-menu-category.active:focus-visible{background:#41765e}
+#game-menu button:active{transform:translate(-50%,-50%) rotate(var(--menu-angle)) translateY(var(--menu-radius)) rotate(var(--menu-counter-angle))}
+#game-menu .game-menu-toggle:active,#game-menu .game-menu-close:active{transform:none}
+.game-menu-tooltip{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);z-index:5;max-width:200px;width:max-content;padding:7px 10px;border-radius:7px;background:#294d40;color:#fffbea;box-shadow:0 4px 12px #23443726;font-size:12px;font-weight:600;line-height:1.3;white-space:normal;pointer-events:none;opacity:0;visibility:hidden;transition:opacity .12s}
+[data-tooltip-side=left]>.game-menu-tooltip{left:0;transform:none}
+[data-tooltip-side=right]>.game-menu-tooltip{left:auto;right:0;transform:none}
+#game-menu button:hover>.game-menu-tooltip,#game-menu button:focus-visible>.game-menu-tooltip{opacity:1;visibility:visible}
+@keyframes game-wheel-enter{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+@keyframes game-orbit-enter{from{opacity:0;transform:translate(-50%,-50%) rotate(var(--menu-angle)) translateY(0) rotate(var(--menu-counter-angle)) scale(.6)}to{opacity:1;transform:translate(-50%,-50%) rotate(var(--menu-angle)) translateY(var(--menu-radius)) rotate(var(--menu-counter-angle)) scale(1)}}
+@media(max-width:700px){#game-menu{left:12px;bottom:12px}.game-menu-toggle{width:56px;height:56px}.game-menu-tooltip{max-width:155px;font-size:11px}.game-menu-center strong{font-size:12px;max-width:74px}}
+@media(prefers-reduced-motion:reduce){.game-menu-wheel,.game-menu-orbit{animation:none!important}.game-menu-tooltip{transition:none!important}}
+.game-menu-item[data-sound-active=true]{color:#2b765b;background:#e9f0d8}
+
+/* One control hub; the remaining header is a compact game HUD. */
+.topbar{height:72px;padding:0 24px}.workbar{height:52px;padding:0 24px;justify-content:space-between}.hospital-name{cursor:default}.time-controls{margin-left:auto}
+.game-shell,.room-editor-open .game-shell{height:calc(100dvh - 124px);min-height:480px}
+.stage-hint{left:98px;bottom:20px}.view-controls{bottom:72px}
+.detail-panel{bottom:18px;max-height:calc(100% - 36px)}
+.room-editor-open .stage-hint{left:98px}.room-hire{margin:10px 0 16px}
+.game-menu-wheel{pointer-events:auto}.game-menu-toggle::after{content:attr(data-caption);position:absolute;top:calc(100% + 3px);font-size:10px;color:#315f50;font-weight:700;letter-spacing:.4px}
+#game-menu:not(.is-open){bottom:27px}#game-menu{max-width:calc(100% - 24px)}
+#game-menu .game-menu-item:disabled{opacity:.45}
+.game-menu-items[data-menu-section]{animation:game-wheel-enter .18s ease-out}
+.menu-shield{position:absolute;inset:0;z-index:23;background:#315f500c}
+@media(max-width:1050px){.topbar{gap:15px}.vital-stats{gap:20px}.brand{min-width:225px}.brand strong{font-size:26px}}
+@media(max-width:700px){.topbar{height:72px;padding:8px 12px;gap:12px}.brand{min-width:0}.brand strong{font-size:19px}.brand small{display:none}.brand-mark{width:32px;height:32px;font-size:26px;border-radius:9px}.vital-stats{gap:10px;margin-left:auto}.vital{min-width:0;gap:0}.vital .stat-icon{display:none}.vital b{font-size:17px}.vital small{font-size:9px}.workbar{height:52px;padding:0 12px}.hospital-name{min-width:0;gap:5px}.hospital-name b{font-size:12px}.hospital-name small{font-size:10px}.hospital-icon{display:none}.day-label{font-size:10px}.time-controls{gap:3px}.time-button{width:30px;height:30px}.game-shell,.room-editor-open .game-shell{height:calc(100dvh - 124px);min-height:0;display:block}.shift-sidebar{display:none}.hospital-stage,.room-editor-open .hospital-stage{height:100%;min-height:0}.stage-hint{left:83px;right:12px;bottom:16px;font-size:10px}.view-controls{bottom:84px}.detail-panel{top:8px;right:8px;bottom:8px;max-height:calc(100% - 16px);width:min(330px,calc(100% - 86px))}.room-editor-open .stage-hint{left:83px;right:12px}.room-editor-open .view-controls{right:10px}.game-menu-wheel{--wheel-size:min(420px,92vw,calc(100dvh - 160px))}}
+
+#game-menu [data-section=rooms].game-menu-category{background:#f2ddb4;color:#89612e}
+#game-menu [data-section=staff].game-menu-category{background:#d7e6f2;color:#3d6883}
+#game-menu [data-section=patients].game-menu-category{background:#f0dcd6;color:#936350}
+#game-menu [data-section=clinic].game-menu-category{background:#d7e8d8;color:#45664b}
+#game-menu .game-menu-category.active{border:2px solid currentColor;box-shadow:0 0 0 4px #fffaf0}
+@media(max-width:700px){.tutorial-mode:not(.start-screen):not(.room-editor-open) .shift-sidebar{display:block;position:absolute;left:10px;top:142px;width:220px;max-height:180px;overflow:auto;z-index:4;padding:10px;border-radius:12px;border:1px solid #cfddc7;box-shadow:0 5px 18px #294c3922}.tutorial-mode:not(.start-screen) .shift-sidebar>:not(.guide-card):not(.tutorial-skip){display:none}.tutorial-mode:not(.start-screen) .guide-card{padding:12px;margin:0}.tutorial-mode:not(.start-screen) .guide-card h2{font-size:17px}.tutorial-mode:not(.start-screen) .guide-card p{font-size:12px}.tutorial-mode:not(.start-screen) .guide-dots{display:none}.start-screen #game-menu{--wheel-size:min(320px,88vw)}.start-screen .hospital-stage:has(.game-menu-wheel){min-height:350px}}

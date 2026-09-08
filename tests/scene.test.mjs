@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Game} from '../src/game.js';
 import {sceneLayers} from '../src/scene.js';
-import {roomObjects,OBJECT_INFO,FURNITURE} from '../src/objects.js';
+import {roomObjects,furniturePorts,OBJECT_INFO,FURNITURE} from '../src/objects.js';
 import {workplace} from '../src/staff.js';
 import {skeleton,characterScale} from '../src/animation.js';
 
@@ -17,4 +17,17 @@ test('the receptionist sits behind the counter while working hands and patients 
 
 test('purchased room details keep unique clickable identities and descriptions',()=>{
  for(const type of ['reception','waiting','gp','pharmacy','therapy','surgery','lab','lounge','toilet']){const r={id:1,type,x:2,y:2,w:5,h:4,furniture:[]};for(const [kind,spec] of Object.entries(FURNITURE))if(spec.rooms.includes(type))r.furniture.push({id:kind,kind,x:0,y:0,rotation:0});const objects=roomObjects(r);assert.equal(new Set(objects.map(o=>o.id)).size,objects.length);for(const o of objects)assert.ok(OBJECT_INFO[o.kind]?.[1].every(s=>s.length>20));for(const kind of ['poster','clock'])assert.ok(objects.some(o=>o.kind===kind));}
+});
+
+test('a sofa stays on the correct side of both occupied seats in every rotation',()=>{
+ for(let rotation=0;rotation<4;rotation++){
+  const room={id:1,type:'waiting',x:2,y:2,w:5,h:4,furniture:[{id:'sofa',kind:'sofa',x:1,y:1,rotation}]},game={rooms:[room]};
+  const people=furniturePorts(room).filter(port=>port.kind==='seat').map((port,index)=>({...port,id:100+index,state:'seated'}));
+  const emptyDepth=sceneLayers(game,[]).find(layer=>layer.object?.kind==='sofa').depth;
+  for(const occupants of [[people[0]],[people[1]],people]){
+   const layers=sceneLayers(game,occupants),sofaIndex=layers.findIndex(layer=>layer.object?.kind==='sofa');
+   assert.equal(layers[sofaIndex].depth,emptyDepth,'Furniture depth must not jump as people sit down');
+   for(const person of occupants){const personIndex=layers.findIndex(layer=>layer.person?.id===person.id);assert.ok([1,2].includes(rotation)?sofaIndex>personIndex:sofaIndex<personIndex,`Sofa rotation ${rotation} must layer correctly for seat ${person.localIndex}`);}
+  }
+ }
 });

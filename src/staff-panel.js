@@ -1,0 +1,21 @@
+import {ROOMS} from './content.js';
+import {ROLES,PERSONALITIES,RECRUITMENT_FEE} from './recruitment.js';
+
+export function renderStaffPanel(game,{view='hire',role='receptionist',helpers}){
+ const {t,copy,label,avatar,btn,money,escape,staffStatus,panelHeader}=helpers;
+ const currentView=view==='team'?'team':'hire',currentRole=ROLES.includes(role)?role:'receptionist';
+ const applicants=new Map(ROLES.map(role=>[role,game.applicants(role)]));
+ const applicantCount=[...applicants.values()].reduce((sum,list)=>sum+list.length,0);
+ const tabs=`<nav class="staff-view-tabs" aria-label="${escape(copy('Staff views','Personalansichten'))}">${[['hire',copy('Applicants','Bewerber'),applicantCount],['team',copy('Your team','Dein Team'),game.staff.length]].map(([value,title,count])=>btn('staff-view',`${title}<span class="staff-tab-count">${count}</span>`,`staff-view-button${currentView===value?' active':''}`,`data-view="${value}" aria-pressed="${currentView===value}"`)).join('')}</nav>`;
+ let content;
+ if(currentView==='hire'){
+  const cards=applicants.get(currentRole).map(s=>`<article class="recruit-card applicant-card">${avatar(s)}<div><span class="applicant-tier">${t(s.personality)}</span><b>${escape(s.name)}</b><p>${label(PERSONALITIES[s.personality])}</p><div class="applicant-stats"><span>${t('skill')} <b>${Math.round(s.skill*100)}%</b></span><span>${t('monthlySalary')} <b>${money(s.wage)}</b></span></div>${btn('hire-applicant',`${t('hire')} · ${money(s.hire)}`,'small-button',`data-applicant="${s.id}" ${game.cash<s.hire?'disabled':''}`)}</div></article>`).join('');
+  content=`<h3 class="recruit-label">${copy('Choose a profession','Beruf auswählen')}</h3><div class="recruit-tabs">${ROLES.map(role=>btn('recruit-role',t(role),currentRole===role?'active':'',`data-role="${role}" aria-pressed="${currentRole===role}"`)).join('')}</div><p class="panel-intro">${copy('Compare skill, salary and personality before hiring.','Vergleiche Können, Gehalt und Macke vor dem Einstellen.')}</p><div class="applicant-list">${cards||`<p class="panel-intro">${t('noApplicants')}</p>`}</div>${btn('refresh-applicants',`${t('refreshApplicants')} · ${money(RECRUITMENT_FEE)}`,'secondary full',game.cash<RECRUITMENT_FEE?'disabled':'')}<p class="recruit-note">${t('recruitFeeHint')}</p>`;
+ }else{
+  content=game.staff.length?game.staff.map(s=>{
+   const room=game.room(s.roomId),fatigue=Math.max(0,Math.min(100,s.fatigue));
+   return `<article class="employee-card">${avatar(s)}<div class="employee-info"><b>${escape(s.name)}</b><span>${t(s.role)} · ${escape(staffStatus(s))}${room?' · '+label(ROOMS[room.type].name):''}</span><div class="fatigue-line"><i style="width:${fatigue}%;background:${fatigue>70?'#c28455':'#b9cb9c'}"></i></div><small>${t('fatigue')} ${Math.round(fatigue)}% · ${money(s.wage)} / ${t('month')}</small><small>${t('skill')} ${Math.round(s.skill*100)}% · ${escape(s.personality?t(s.personality):t('steady'))}</small></div>${btn('staff-break',s.breakPending?copy('Break requested','Pause vorgemerkt'):copy('Take a break','Pause machen'),'staff-break',`data-id="${s.id}" ${s.resting||s.breakPending?'disabled':''}`)}${btn('dismiss-staff','×','dismiss-button',`data-id="${s.id}" title="${escape(t('dismiss'))}" aria-label="${escape(t('dismiss')+' · '+s.name)}"`)}</article>`;
+  }).join(''):`<div class="staff-empty"><h3>${copy('Your team starts here','Hier beginnt dein Team')}</h3><p>${copy('Hire your first employee to bring the clinic to life.','Stelle deine erste Person ein und bringe Leben in die Klinik.')}</p>${btn('staff-view',copy('Find applicants','Bewerber ansehen'),'primary full','data-view="hire"')}</div>`;
+ }
+ return panelHeader(copy('Staff','Personal'),copy('Hire and manage your team','Dein Team finden und betreuen'))+tabs+`<div class="panel-scroll staff-panel-content" data-staff-view="${currentView}">${content}</div>`;
+}

@@ -58,9 +58,9 @@ All room furnishings have a stable identity, a Canvas hit target and an explanat
 
 Reception creates the registration order. Completed diagnosis creates the follow-up order. A clinician explicitly calls the oldest waiting patient for that department, reserves the room, then starts service only when the patient reaches the treatment position. The **Waiting list** shows waiting, called and active visits; the latest call remains visible with a matching room number. Funny speech-bubble pictograms reflect actions and needs without depending on emoji font availability.
 
-**Enable announcements** performs an audible test inside a user click; opening the clinic also enables them. SpeechSynthesis announces names and rooms in the selected language, using available matching system voices. Voice availability depends on the browser and OS. Twelve bundled German/English recordings provide generic department announcements when synthesis is unavailable. A browser may require the enable button again if it blocks playback. Subtitles always show the named call. Calls never block simulation, repeat after loading, overlap, or accumulate at 3× speed. Pause, dialogs, hidden tabs, language changes and save imports clear pending speech. The recorded fallback cannot speak arbitrary patient names; it announces the department instead.
+**Sound options → Spoken patient calls** performs an audible test inside a user click; opening or resuming a clinic also enables them unless explicitly muted. SpeechSynthesis announces names and rooms in the selected language, using available matching system voices. Voice availability depends on the browser and OS. Twelve bundled German/English recordings provide generic department announcements when synthesis is unavailable. A browser may require the enable button again if it blocks playback. Subtitles always show the named call. Calls never block simulation, repeat after loading, overlap, or accumulate at 3× speed. Pause, dialogs, hidden tabs, language changes and save imports clear pending speech. The recorded fallback cannot speak arbitrary patient names; it announces the department instead.
 
-Live UI updates preserve existing buttons and focus. Tutorial guidance stays in its lesson card; normal play shows clinic information. The room palette opens only when choosing **Build**, leaving more space for the clinic.
+Live UI updates preserve existing buttons and focus. Tutorial guidance stays in its lesson card; normal play shows clinic information. Building, staff, records, research, finances, saving, language and audio options live in one icon wheel. The permanent top management tabs and bottom construction strip have been removed. Unstaffed rooms also offer the appropriate hiring shortcut, and staff views separate applicants from the existing team.
 
 ## Comedy with consequences
 
@@ -88,13 +88,15 @@ Less than −$5,000 cash or zero reputation ends a shift.
 
 ## Controls and saves
 
-Space pauses; 1/2/3 change speed; B toggles construction; Escape cancels. Drag a rectangle of at least 3×3 tiles to build. Doorways must stay accessible. Mouse wheel zooms; right drag or arrows pan. With construction selected and the canvas focused, arrows move the cursor and Enter sets each corner. Select a room to inspect, upgrade or demolish it.
+The animated menu wheel combines building, staff, patients and clinic management. Select an inner category, then an outer icon; hover or keyboard focus shows its label. M opens the wheel, B opens its building section, and Escape closes it. Space pauses; 1/2/3 change speed. Drag a rectangle of at least 3×3 tiles to build. Doorways must stay accessible. Mouse wheel zooms; right drag or arrows pan. With construction selected and the canvas focused, arrows move the cursor and Enter sets each corner. Select a room to inspect, upgrade or demolish it.
 
 In the furniture editor, **R** rotates, arrow keys make quarter-tile adjustments, **Enter** places, and **Escape** cancels the current placement. Wall clocks and posters snap to supporting walls.
 
-English/German follow the browser automatically, with a persistent manual override. Saves are local to this browser/device. Settings provides JSON import/export, optional musical effects, and a new-hospital menu. Use the separate speaker button to enable or mute spoken patient announcements. The simulation pauses when its tab is hidden. The mobile layout keeps the guide and room palette accessible.
+English/German follow the browser automatically, with a persistent manual override. Saves are local to this browser/device. Settings provides JSON import/export, optional musical effects, and a new-hospital menu. Use Menu → Clinic → Sound options to enable or mute spoken patient announcements independently from sound effects. The menu also provides automatic/English/German selection and saving; Settings contains save import/export. The simulation pauses when its tab is hidden. The wheel adapts to small screens; tutorial guidance remains accessible in a compact card.
 
 ## Art
+
+Version 2.7 introduces continuous character silhouettes, shaped hair in every direction and head-and-shoulders portraits. Sofas sort against both seating positions and speech bubbles clear the hairstyle. Three additional counters and eight practice furnishings add round and modern reception desks, a working pharmacy sales counter, writing and round tables, medicine shelving, a gumball machine, a newspaper stand, water, coats and sanitizer. Waiting-area gumballs, newspapers and water each reduce seated patience loss by 5%, once per type, up to 15%; the other additions are decoration or workplace alternatives. All can be moved and rotated and share their actual collision geometry.
 
 Version 2.6 adds distinct room palettes and flooring, individual patient styling and movable furniture with four orientations. Reception keyboards face the seated employee. The room layout is the source of both rendering and collision geometry.
 
