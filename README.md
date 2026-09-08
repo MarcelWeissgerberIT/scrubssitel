@@ -102,6 +102,10 @@ English/German follow the browser automatically, with a persistent manual overri
 
 ## Art
 
+Version 2.11 draws sofa and chair cushions, backs and arms separately so seated people and passers-by appear on the correct side in every rotation. Adult and child knees clear the seat front; clothing and held objects follow the same blended sitting motion. Each piece of furniture remains one selectable and editable object. Adjacent vending machines reserve physical space at their use points, preventing two buyers from sharing a spot. Loading an older overlapping reservation returns the later visitor to their reserved seat without teleporting or changing their money.
+
+Named staff profiles now share an explicit identity across applications, live models, portraits and saved games. Direct cast portraits use the correct character. Individual German titles follow the profile (for example, Tessa is an Ärztin and Nia a Chirurgin). Patient charts and live figures share the same stable appearance; their unisex names do not assign a gender.
+
 Version 2.9 gives heads more front-to-back depth across every direction, with matching cheeks, ears and hair. New placeable cloth screens, frosted-glass partitions, treatment trolleys, pedal bins and examination couches have four orientations and catalog previews. Their solid footprints participate in route finding, and placement must preserve access to doors and workstations. Trolleys and couches are additional furnishings; they do not replace a department's required treatment equipment. Room floors are drawn first, then wall segments, furniture and people share the depth order. Near walls hide equipment in the room behind them, and hidden objects no longer intercept clicks through those walls.
 
 Version 2.8 refines rounded head profiles, surface-following hair, eye direction and glasses across every heading. Staff can be picked up with a visible hand; placement feedback marks the hovered floor and rejects unsuitable destinations.

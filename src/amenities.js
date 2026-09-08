@@ -2,7 +2,9 @@ import {FURNITURE,furniturePorts} from './objects.js';
 import {insidePath,segmentBlocked} from './layout.js';
 
 export const AMENITY_STATES=['amenityTravel','amenityBuy','amenityReturn'];
+export const AMENITY_CLEARANCE=.6;
 const near=(a,b)=>!!a&&!!b&&Math.hypot(a.x-b.x,a.y-b.y)<1e-7;
+const tooClose=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y)<AMENITY_CLEARANCE-1e-7;
 const active=p=>AMENITY_STATES.includes(p.state);
 const canRun=g=>g.admissionsOpen===true&&!g.over&&!g.event;
 const vending=kind=>Object.hasOwn(FURNITURE,kind||'')?FURNITURE[kind].vending:null;
@@ -17,6 +19,8 @@ function visit(g,p){
  const port=spec&&furniturePorts(r).find(v=>v.furnitureId===item.id&&v.kind==='use'),seat=r&&g.seats(r)[p.seatIndex];
  return a&&r?.type==='waiting'&&g.roomReady(r)&&p.seatRoom===r.id&&item?.kind===a.kind&&port&&seat?{a,r,item,spec,port,seat}:null;
 }
+function occupiedPort(g,p,port){return [...g.patients,...g.staff].some(other=>other!==p&&tooClose(other,port));}
+function reservedPort(g,p,r,port){return g.patients.some(other=>other!==p&&active(other)&&other.amenity?.roomId===r.id&&visit(g,other)&&tooClose(visit(g,other).port,port));}
 function arrive(p,v){
  if(p.state==='amenityTravel'&&near(p,v.port)){p.state='amenityBuy';p.amenity.elapsed=0;return true;}
  if(p.state==='amenityReturn'&&near(p,v.seat)){p.state='seated';p.amenity=null;return true;}
@@ -38,7 +42,7 @@ export function tryStartAmenity(g,p){
   const spec=vending(item.kind);if(!spec)continue;
   if(g.patients.some(other=>other!==p&&other.amenity?.roomId===r.id&&other.amenity.furnitureId===item.id))continue;
   const port=ports.find(v=>v.furnitureId===item.id&&v.kind==='use');if(!port)continue;
-  if([...g.patients,...g.staff].some(other=>other!==p&&Math.hypot(other.x-port.x,other.y-port.y)<.4))continue;
+  if(occupiedPort(g,p,port)||reservedPort(g,p,r,port))continue;
   const path=insidePath(r,p,port);if(path===null||insidePath(r,port,seat)===null)continue;
   choices.push({item,port,path});
  }
@@ -68,6 +72,10 @@ export function updateAmenity(g,p,dt){
   }
   p.path=back;p.state='amenityReturn';if(!back.length)arrive(p,v);return true;
  }
+ // A person may have entered the reserved spot after the trip began. Wait for
+ // that person to leave instead of walking into them; a clinical call can still
+ // interrupt this waiting trip immediately through the normal FIFO queue.
+ if(p.state==='amenityTravel'&&occupiedPort(g,p,v.port))return true;
  g.move(p,dt);if(!p.path.length&&!arrive(p,v))abortVisit(g,p);return true;
 }
 
@@ -85,8 +93,8 @@ export function amenityActivity(g,roomId,furnitureId){
  const spec=p&&vending(p.amenity.kind);return spec?{active:true,patientId:p.id,progress:Math.max(0,Math.min(1,p.amenity.elapsed/spec.duration))}:null;
 }
 
-export function validateAmenities(g){
- const reserved=new Set();
+export function validateAmenities(g,{allowSpatialConflicts=false}={}){
+ const reserved=new Set(),ports=[];
  for(const p of g.patients){
   if(typeof p.amenityPurchased!=='boolean'||!Number.isFinite(p.amenityNextAt)||p.amenityNextAt<0||p.amenity===undefined)throw Error('Invalid amenity history');
   if(p.amenity===null){if(active(p))throw Error('Missing amenity visit');continue;}
@@ -94,6 +102,8 @@ export function validateAmenities(g){
   const v=visit(g,p),key=`${a.roomId}:${a.furnitureId}`;
   if(!v||reserved.has(key)||a.elapsed>v.spec.duration||!p.registered||p.stage==='exit'||!Array.isArray(p.path))throw Error('Invalid amenity reservation');
   reserved.add(key);
+  if(!allowSpatialConflicts&&ports.some(other=>other.roomId===v.r.id&&tooClose(other,v.port)))throw Error('Overlapping amenity reservations');
+  ports.push({...v.port,roomId:v.r.id});
   if(p.state==='amenityReturn'){
    if(!a.paid||!p.amenityPurchased||Math.abs(a.elapsed-v.spec.duration)>1e-7||!p.path.length||!near(p.path.at(-1),v.seat))throw Error('Invalid paid amenity return');
   }else if(a.paid||p.amenityPurchased)throw Error('Invalid amenity payment');
@@ -101,5 +111,18 @@ export function validateAmenities(g){
   if(p.state==='amenityBuy'&&(p.path.length||!near(p,v.port)||a.elapsed>=v.spec.duration))throw Error('Invalid amenity purchase');
   let previous=p;for(const step of p.path){if(segmentBlocked(v.r,previous,step))throw Error('Invalid amenity route');previous=step;}
   const target=p.state==='amenityReturn'?v.seat:v.port;if(insidePath(v.r,p,target)===null)throw Error('Unreachable amenity visit');
+ }
+}
+
+// Previously legal layouts can contain separate machines with coincident use
+// points. Resolve only this new conflict: malformed visits and duplicate leases
+// on the same machine still fail their established validation before any edits.
+export function normalizeAmenities(g){
+ validateAmenities(g,{allowSpatialConflicts:true});
+ const kept=[];
+ for(const p of g.patients.filter(active).sort((a,b)=>a.id-b.id)){
+  const v=visit(g,p);
+  if(kept.some(other=>other.roomId===v.r.id&&tooClose(other,v.port)))abortVisit(g,p);
+  else kept.push({...v.port,roomId:v.r.id});
  }
 }

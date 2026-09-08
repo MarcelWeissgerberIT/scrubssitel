@@ -1,4 +1,5 @@
-import {characterScale,skeleton} from './animation.js';
+import {characterScale,seatedForward,skeleton} from './animation.js';
+import {personGender,STAFF_PROFILES} from './recruitment.js';
 // Original cast modeled from the OpenArt cast reference. Live articulated
 // geometry supplies complete front, side and back views without slicing a bitmap.
 export const LOOKS={
@@ -39,7 +40,7 @@ function patientAppearance(person){
  const base=LOOKS[`${child?'child':'patient'}-${variant}`],outfit=pick(PATIENT_CLOTHES,'clothes');
  const styles=child?['curls','bob','ponytail','tuft','sweep','bun']:group==='senior'?['bob','bun','sweep','bald','tuft']:group==='mature'?['curls','bob','ponytail','sweep','bun','bald']:['curls','bob','ponytail','sweep','bun','tuft'];
  const hair=group==='senior'?pick(['#d1cec4','#a7aaa4','#bab4a5','#797b75','#d8d5cc','#665c50'],'hair'):pick(PATIENT_HAIR,'hair');
- return {key,look:{...base,patient:true,skin:pick(PATIENT_SKIN,'skin'),hair,shirt:outfit[0],sleeve:outfit[1],pants:outfit[2],
+ return {key,gender:null,look:{...base,patient:true,skin:pick(PATIENT_SKIN,'skin'),hair,shirt:outfit[0],sleeve:outfit[1],pants:outfit[2],
   shoes:pick(child?['#f1dc98','#e89c75','#8bc2c5','#edead8']:['#ede4ca','#625347','#47666a','#9a7050'],'shoes'),style:pick(styles,'style'),
   glasses:hashKey(key+':glasses')%(group==='senior'?3:child?8:6)===0,freckles:hashKey(key+':freckles')%4===0,
   iris:pick(['#7c5636','#5c786e','#787f46','#6c7895'],'iris'),accent:outfit[1],pattern:pick(['plain','stripe','dots','cardigan'],'pattern')}};
@@ -47,14 +48,14 @@ function patientAppearance(person){
 export function appearanceFor(person){
  const id=person.applicantId??(typeof person.id==='string'?person.id:''),match=/^(\d+)-(receptionist|doctor|nurse|surgeon|janitor)-([0-2])$/.exec(id);
  if(!match){
-  const key=person.castId||`${person.child?'child':'patient'}-${person.variant||0}`;
+  const key=person.castId||(person.role&&LOOKS[id]?id:`${person.child?'child':'patient'}-${person.variant||0}`);
   // Recruitment and legacy employee identities must never acquire patient variation.
-  if(person.role||person.applicantId||person.castId&&!/^(patient|child)-/.test(person.castId))return {key,look:LOOKS[key]||LOOKS.milo};
+  if(person.role||person.applicantId||person.castId&&!/^(patient|child)-/.test(person.castId))return {key,gender:personGender(person),look:LOOKS[key]||LOOKS.milo};
   return patientAppearance(person);
  }
- const round=Number(match[1]),base=STAFF_LOOKS[match[2]][Number(match[3])];if(!round)return {key:id,look:base};
+ const round=Number(match[1]),base=STAFF_LOOKS[match[2]][Number(match[3])],gender=STAFF_PROFILES[match[2]][Number(match[3])].gender;if(!round)return {key:id,gender,look:base};
  const shirts=['#bd8675','#79a6ad','#ab97bd','#8aaa82','#cead65'],hair=['#4b342a','#aa6038','#706454','#c1beb0'];
- return {key:id,look:{...base,hair:hair[(round+Number(match[3]))%hair.length],shirt:shirts[(round+Number(match[3])*2)%shirts.length],sleeve:base.medical?base.sleeve:shirts[(round+Number(match[3])*2+1)%shirts.length]}};
+ return {key:id,gender,look:{...base,hair:hair[(round+Number(match[3]))%hair.length],shirt:shirts[(round+Number(match[3])*2)%shirts.length],sleeve:base.medical?base.sleeve:shirts[(round+Number(match[3])*2+1)%shirts.length]}};
 }
 export function portraitSeed(person){let seed=2166136261;for(const c of appearanceFor(person).key)seed=Math.imul(seed^c.charCodeAt(0),16777619);return seed>>>0;}
 // The same small palette supplies hundreds of gradient stops every frame.
@@ -74,11 +75,11 @@ const HEAD_WIDTH=1.08,HEAD_DEPTH=1.32;
 export class CharacterModel{
  constructor(ctx){this.ctx=ctx;}
  draw(person,a,origin,tileWidth,part='all'){
-  const c=this.ctx,u=tileWidth*characterScale(person),look=appearanceFor(person).look,pose=skeleton(a,person),commands=[],co=Math.cos(a.yaw),si=Math.sin(a.yaw);
+  const c=this.ctx,u=tileWidth*characterScale(person),look=appearanceFor(person).look,pose=skeleton(a,person),commands=[],co=Math.cos(a.yaw),si=Math.sin(a.yaw),forward=seatedForward(person)*a.sit/characterScale(person);
   const bounds={left:Infinity,top:Infinity,right:-Infinity,bottom:-Infinity};
   let headSpace=null;
   const include=(x,y,rx=0,ry=rx)=>{bounds.left=Math.min(bounds.left,x-rx-1);bounds.right=Math.max(bounds.right,x+rx+1);bounds.top=Math.min(bounds.top,y-ry-1);bounds.bottom=Math.max(bounds.bottom,y+ry+1);};
-  const project=v=>{const xx=headSpace?headSpace[0]+(v[0]-headSpace[0])*HEAD_WIDTH:v[0],yy=headSpace?headSpace[1]+(v[1]-headSpace[1])*HEAD_DEPTH:v[1],x=xx*co+yy*si,y=-xx*si+yy*co;return {x:origin.x+(x-y)*u*.5,y:origin.y+(x+y)*u*.255-v[2]*u,depth:(x+y)*.66+v[2]*.34};};
+  const project=v=>{const xx=headSpace?headSpace[0]+(v[0]-headSpace[0])*HEAD_WIDTH:v[0],yy=(headSpace?headSpace[1]+(v[1]-headSpace[1])*HEAD_DEPTH:v[1])+forward,x=xx*co+yy*si,y=-xx*si+yy*co;return {x:origin.x+(x-y)*u*.5,y:origin.y+(x+y)*u*.255-v[2]*u,depth:(x+y)*.66+v[2]*.34};};
   const sphere=(point,rx,ry,rz,fill,detail=0,matte=1)=>{
    const p=project(point),xx=rx*(headSpace?HEAD_WIDTH:1),yy=ry*(headSpace?HEAD_DEPTH:1),width=Math.sqrt((xx*(co+si))**2+(yy*(si-co))**2)*u*.5,height=Math.sqrt((xx*(co-si)*.255)**2+(yy*(si+co)*.255)**2+rz*rz)*u;
    include(p.x,p.y,width,height);
@@ -298,7 +299,7 @@ export class CharacterModel{
    if(look.patient&&look.pattern==='cardigan')for(const side of [-1,1])line([[side*.065,.192,z+.022],[side*.04,.206,waist+.14],[side*.04,.191,waist+.015]],look.accent,.024,.026);
    if(look.medical){line([[-.085,.195,z+.035],[-.12,.208,z-.09],[0,.225,z-.14],[.12,.208,z-.09],[.085,.195,z+.035]],'#395c61',.019,.018);sphere([0,.23,z-.14],.034,.021,.036,'#d2deda',.024);sphere([0,.249,z-.14],.020,.01,.022,'#6e9698',.025);}
    if(look.tie)line([[0,.144,pose.chest[2]+.03],[.025,.15,pose.hip[2]+.06]],'#edc66a',.05);
-   if(person.castId==='rosa')line([[0,.138,pose.chest[2]], [0,.142,pose.hip[2]+.03]],'#efd797',.021);
+   if(person.castId==='rosa'||look===LOOKS.rosa)line([[0,.138,pose.chest[2]], [0,.142,pose.hip[2]+.03]],'#efd797',.021);
    panel([[.116,.195,z+.026],[.174,.186,z+.026],[.174,.186,z-.05],[.116,.195,z-.05]],'#f9f3dd');line([[.129,.201,z+.024],[.161,.198,z+.024]],'#708da3',.01,.025);sphere([.143,.202,z-.008],.012,.008,.014,'#72aeb3',.025);
   }
   if(person.role==='janitor'&&a.sit<.1){const hand=pose.arms[1].hand,end=[.11,.55+Math.sin(a.time*3)*a.work*.08,.025];bone(hand,end,.019,'#b6976a');sphere(end,.18,.09,.025,'#d3d0b6');}

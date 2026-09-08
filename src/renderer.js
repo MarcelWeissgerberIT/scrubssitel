@@ -142,7 +142,7 @@ export class Renderer{
  particles(x,y,time,color,glyph){const c=this.ctx;c.fillStyle=color;c.font=`bold ${Math.max(12,this.tw*.26)}px sans-serif`;for(let i=0;i<3;i++){const phase=(time*.7+i/3)%1;c.globalAlpha=1-phase;c.fillText(glyph,x+Math.sin(i*4+time)*this.tw*.2,y-phase*this.tw*.7);}c.globalAlpha=1;}
  captureStep(game){this.snapshotGame=game;this.previousStaff=new Map(game.staff.map(s=>[s.id,{x:s.x,y:s.y}]));this.previousPatients=new Map(game.patients.map(p=>[p.id,{x:p.x,y:p.y}]));}
  person(person,staff=false,time=0){
-  const c=this.ctx,p=this.project(person.x+.5,person.y+.5),pose=this.animator.update(person,time);
+  const c=this.ctx,p=this.project(person.x+.5,person.y+.5),pose=person.pose||this.animator.update(person,time);
   this.ellipse(p.x,p.y+this.tw*.025,this.tw*.145,this.tw*.06,'#24463c27');
   const bounds=this.characterModel.draw(person,pose,p,this.tw),height=bounds.height,width=Math.max(this.tw*.38,bounds.width);
   this.hits.push({x:p.x-width/2,y:p.y-height,w:width,h:height+4,type:staff?'staff':'patient',id:person.id,person,pose});
@@ -185,6 +185,7 @@ export class Renderer{
   const entry=this.project(11.9,17.35);c.save();c.translate(entry.x,entry.y);c.rotate(-.47);c.font=`bold ${Math.max(10,this.tw*.29)}px sans-serif`;c.fillStyle='#638174';c.fillText(this.lang==='de'?'↑  WILLKOMMEN':'↑  WELCOME',-43,0);c.restore();
   for(const room of game.rooms)this.drawRoomFloor(room);
   const people=game.patients.map(p=>{const previous=this.snapshotGame===game?this.previousPatients.get(p.id):null,r=game.room(p.targetRoom),seatRoom=game.room(p.seatRoom),lookYaw=p.state==='amenityBuy'&&seatRoom?furniturePorts(seatRoom).find(port=>port.furnitureId===p.amenity?.furnitureId&&port.kind==='use')?.lookYaw:p.state==='seated'&&seatRoom?roomSeats(seatRoom)[p.seatIndex]?.lookYaw:p.state==='service'&&r?patientPoint(r)?.lookYaw:undefined;return {...p,x:previous?mix(previous.x,p.x,alpha):p.x,y:previous?mix(previous.y,p.y,alpha):p.y,staff:false,lookYaw};});for(const staff of game.staff)if(staff.id!==this.carriedStaffId)people.push(this.staffActor(staff,game,time,alpha));
+  for(const person of people)person.pose=this.animator.update(person,time);
   for(const layer of sceneLayers(game,people)){
    if(layer.kind==='wall')this.drawWall(layer);
    else if(layer.kind==='object'){if(!(layer.room.id===this.editor?.roomId&&layer.object.furnitureId===this.editor?.tool?.id))this.furniture(layer.room,time,[layer.object]);}

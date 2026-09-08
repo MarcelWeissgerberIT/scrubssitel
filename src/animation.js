@@ -4,6 +4,10 @@ export const CHARACTER_SCALE=.95;
 export const SEAT_HEIGHT=.32;
 export const HIP_RADIUS=.095;
 export const characterScale=person=>CHARACTER_SCALE*(person.child?.73:1);
+// Keep saved seat anchors fixed. Bring knees past the cushion's front edge,
+// blending the same presentation offset through sitting down and standing up.
+export const seatedForward=person=>person.role==='receptionist'?0:person.child?.20:.15;
+export function seatOffset(person,pose){const amount=seatedForward(person)*(pose?.sit??(isSeated(person)?1:0)),yaw=pose?.yaw??person.lookYaw??0;return {x:Math.sin(yaw)*amount,y:Math.cos(yaw)*amount};}
 const isSeated=person=>person.state==='seated'||person.state==='resting'&&person.hasSeat||person.role==='receptionist'&&person.hasSeat&&person.state!=='travel';
 const TAU=Math.PI*2;
 export const mix=(a,b,t)=>a+(b-a)*t;

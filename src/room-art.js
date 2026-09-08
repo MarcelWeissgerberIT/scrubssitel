@@ -1,5 +1,6 @@
 // Canvas-only furniture. Registry coordinates, seats and simulation state are read-only.
 import {PRACTICE_SIZES,drawPracticeObject,drawCounterDesign} from './practice-art.js';
+import {rotateLocal} from './objects.js';
 const KINDS = new Set(['chair','sofa','stool','counter','monitor','bell','cabinet','plant','toys','books','sink','toilet','coffee','gp','pharmacy','surgery','therapy','lab','poster','clock',...Object.keys(PRACTICE_SIZES)]);
 const tint = (hex, n) => `rgb(${[1,3,5].map(i => Math.max(0, Math.min(255, parseInt(hex.slice(i,i+2),16)+n))).join(',')})`;
 const PALETTES={
@@ -15,6 +16,17 @@ const PALETTES={
 };
 // Detail coordinates use each object's own design space, never the room's origin.
 const DESIGN_SIZE={chair:[.76,.7],sofa:[1.61,.7],stool:[.5,.5],counter:[2,.8],monitor:[.5,.2],bell:[.4,.4],cabinet:[.65,.55],plant:[.4,.4],toys:[1.15,.7],books:[.7,.55],sink:[.65,.55],toilet:[.8,1],coffee:[.7,.6],poster:[.62,.035],clock:[.3,.035],...PRACTICE_SIZES};
+// Keep one selectable furniture identity, but let actors interleave with its
+// actual seat, back and arms. A whole-sofa depth cannot represent both seats.
+export function upholsteryPieces(object){
+ if(!['chair','sofa','stool'].includes(object.kind))return [object];
+ const [w,h]=DESIGN_SIZE[object.kind],local=object.local||{x:0,y:0,w:object.w,h:object.h},frame=object.frame||{x:object.x,y:object.y,w:object.w,h:object.h,rotation:0};
+ const pieces=[['base',0,0,w,h,0,.32],['back',.015,.025,w-.03,.17,.28,object.kind==='stool'?.73:.66],['arm-left',-.008,.13,.11,h-.14,.28,.43],['arm-right',w-.105,.13,.11,h-.14,.28,.43]];
+ return pieces.map(([renderPart,x,y,pw,ph,base,z])=>{
+  const points=[[x,y],[x+pw,y],[x,y+ph],[x+pw,y+ph]].map(([xx,yy])=>rotateLocal({x:local.x+xx*local.w/w,y:local.y+yy*local.h/h},frame.w,frame.h,frame.rotation)),minX=Math.min(...points.map(p=>p.x)),minY=Math.min(...points.map(p=>p.y));
+  return {...object,renderPart,occlusion:{x:frame.x+minX,y:frame.y+minY,w:Math.max(...points.map(p=>p.x))-minX,h:Math.max(...points.map(p=>p.y))-minY,base,z}};
+ });
+}
 function objectSpace(renderer,object){
   const [w,h]=DESIGN_SIZE[object.kind]||[1.65,1.9],sx=object.w/w;
   const sy=(['poster','clock'].includes(object.kind)?Math.min(object.h,.045):object.h)/h,scale=Math.min(1,sx,sy),local=Object.create(renderer);
@@ -55,22 +67,21 @@ function brushes(renderer,palette) {
 
 function upholstered(b,o,office=false) {
   const {x,y,w,h,kind}=o,{soft,wire,dot,face,palette:p}=b,sofa=kind==='sofa',color=office?p.trim:sofa?p.seat:p.accent;
-  if(office){
+  const base=!o.renderPart||o.renderPart==='base',back=!o.renderPart||o.renderPart==='back';
+  if(base&&office){
     const cx=x+w/2,cy=y+h/2;
     for(let i=0;i<5;i++){const a=i*Math.PI*.4,xx=cx+Math.cos(a)*w*.42,yy=cy+Math.sin(a)*h*.42;wire([[cx,cy,.12],[xx,yy,.075]],p.metal,.038);dot(xx,yy,.035,.045,.033,p.trim);}
     soft(cx-.035,cy-.035,.07,.07,.29,p.metal,.09,.025);
-  }else for(const xx of [x+.12,x+w-.18])for(const yy of [y+.13,y+h-.15])soft(xx,yy,.065,.065,.23,p.wood,.025,.02);
-  soft(x+.025,y+.075,w-.05,h-.1,.29,color,.20,.11);
-  soft(x+.015,y+.025,w-.03,.16,office?.73:.66,color,.28,.07);
+  }else if(base)for(const xx of [x+.12,x+w-.18])for(const yy of [y+.13,y+h-.15])soft(xx,yy,.065,.065,.23,p.wood,.025,.02);
+  if(base)soft(x+.025,y+.075,w-.05,h-.1,.29,color,.20,.11);
+  if(back)soft(x+.015,y+.025,w-.03,.16,office?.73:.66,color,.28,.07);
   const count=Math.max(1,Math.floor(o.seats||1)),width=w/count,pad=Math.min(.08,width*.12);
   for(let i=0;i<count;i++){
     // Cushion top is the shared actor seat height; do not raise it for upholstery.
-    soft(x+pad+i*width,y+.20,width-pad*2,h-.26,.32,tintHex(color,24),.265,.075);
-    face(x+pad+i*width,y+.191,.36,width-pad*2,office?.29:.255,tintHex(color,23),.065);
-    if(b.frontFacing)dot(x+(i+.5)*width,y+.162,.48,.016,.015,tintHex(color,-18));
-    wire([[x+pad*1.5+i*width,y+h-.085,.322],[x+(i+1)*width-pad*1.5,y+h-.085,.322]],tintHex(color,-8),.009);
+    if(base){soft(x+pad+i*width,y+.20,width-pad*2,h-.26,.32,tintHex(color,24),.265,.075);wire([[x+pad*1.5+i*width,y+h-.085,.322],[x+(i+1)*width-pad*1.5,y+h-.085,.322]],tintHex(color,-8),.009);}
+    if(back){face(x+pad+i*width,y+.191,.36,width-pad*2,office?.29:.255,tintHex(color,23),.065);if(b.frontFacing)dot(x+(i+.5)*width,y+.162,.48,.016,.015,tintHex(color,-18));}
   }
-  for(const xx of [x-.008,x+w-.105])soft(xx,y+.13,.11,h-.14,.43,color,.28,.05);
+  for(const [part,xx] of [['arm-left',x-.008],['arm-right',x+w-.105]])if(!o.renderPart||o.renderPart===part)soft(xx,y+.13,.11,h-.14,.43,color,.28,.05);
 }
 const tintHex=(hex,n)=>'#'+[1,3,5].map(i=>Math.max(0,Math.min(255,parseInt(hex.slice(i,i+2),16)+n)).toString(16).padStart(2,'0')).join('');
 
@@ -132,6 +143,11 @@ function machine(b,renderer,room,o,time,active) {
 export function drawRoomObject(renderer,room,object,time=0) {
   if(!KINDS.has(object.kind))return false; // Doors and unknown types remain the caller's responsibility.
   if(![object.x,object.y,object.w,object.h].every(Number.isFinite)||object.w<=0||object.h<=0)return false;
+  if(['chair','sofa','stool'].includes(object.kind)&&!object.renderPart){
+    const pieces=upholsteryPieces(object),depth=o=>o.renderPart==='base'?-Infinity:o.occlusion.x+o.occlusion.y+(o.occlusion.w+o.occlusion.h)/2;
+    for(const piece of pieces.sort((a,b)=>depth(a)-depth(b)))drawRoomObject(renderer,room,piece,time);
+    return true;
+  }
   ({renderer,object}=objectSpace(renderer,object));
   const palette=PALETTES[room.type]||PALETTES.gp;
   const b=brushes(renderer,palette),{c,u,soft,wire,dot,project,panel,paper,button}=b,{x,y,w,h,z,kind}=object,game=renderer.game;

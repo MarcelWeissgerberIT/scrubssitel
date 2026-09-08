@@ -1,10 +1,8 @@
 import {roomObjects,furniturePorts} from './objects.js';
+import {upholsteryPieces} from './room-art.js';
+import {seatOffset} from './animation.js';
 
-export function objectDepth(o,seatPorts=[]){
- // Seat backs go behind the seated person; the counter goes in front of them.
- if(['chair','sofa','stool'].includes(o.kind)){const backFacesCamera=[1,2].includes(o.rotation||0),depths=seatPorts.filter(port=>port.furnitureId===o.furnitureId&&port.kind==='seat').map(port=>port.x+port.y+1);if(o.kind==='sofa'&&depths.length)return (backFacesCamera?Math.max(...depths):Math.min(...depths))+(backFacesCamera?.10:-.16);return o.x+o.y+(o.w+o.h)/2+(backFacesCamera?.10:-.16);}
- return o.x+o.y+(o.w+o.h)/2;
-}
+export function objectDepth(object){const b=object.occlusion||object;return b.x+b.y+(b.w+b.h)/2;}
 
 // Short wall pieces can interleave with nearby furniture and walking actors.
 export function roomWalls(room){
@@ -17,10 +15,10 @@ export function roomWalls(room){
  return walls;
 }
 const mountedOn=(a,b)=>['poster','clock'].includes(a.object?.kind)&&b.kind==='wall'&&a.room.id===b.room.id&&b.wall.side===(a.object.rotation===3?'left':'back');
-const cache=new WeakMap(),divider=layer=>layer.kind==='wall'||['privacy-screen','glass-partition'].includes(layer.object?.kind);
+const cache=new WeakMap();
 function bounds(layer){
- const p=layer.person,o=layer.wall||layer.object,b=p?{x:p.x+.24,y:p.y+.24,w:.52,h:.52,z:1.3}:o;
- const x=b.x,y=b.y,xx=x+b.w,yy=y+b.h,z=b.z||1,base={poster:.64,clock:.83,monitor:.57,bell:.57}[o?.kind]||0;
+ const p=layer.person,o=layer.wall||layer.object,offset=p?seatOffset(p,p.pose):null,b=p?{x:p.x+.24+offset.x,y:p.y+.24+offset.y,w:.52,h:.52,z:1.3}:o.occlusion||o;
+ const x=b.x,y=b.y,xx=x+b.w,yy=y+b.h,z=b.z||1,base=b.base??({poster:.64,clock:.83,monitor:.57,bell:.57}[o?.kind]||0);
  return {x,y,xx,yy,left:(x-yy)/2,right:(xx-y)/2,top:(x+y)*.255-z,bottom:(xx+yy)*.255-base};
 }
 function before(a,b){
@@ -33,10 +31,14 @@ function before(a,b){
 function connect(edges,indegree,from,to){if(!edges[from].includes(to)){edges[from].push(to);indegree[to]++;}}
 function staticScene(game){
  const key=JSON.stringify(game.rooms.map(r=>[r.id,r.type,r.x,r.y,r.w,r.h,r.furniture]));let stored=cache.get(game);if(stored?.key===key)return stored;
- const layers=game.rooms.flatMap(room=>{const objects=roomObjects(room),seats=objects.some(o=>o.kind==='sofa')?furniturePorts(room):[];return [...roomWalls(room).map(wall=>({kind:'wall',room,wall,depth:wall.x+wall.y+(wall.w+wall.h)/2})),...objects.map(object=>({kind:'object',room,object,depth:objectDepth(object,seats)}))];});
+ const layers=game.rooms.flatMap(room=>{const objects=roomObjects(room).flatMap(upholsteryPieces),ports=furniturePorts(room);return [...roomWalls(room).map(wall=>({kind:'wall',room,wall,depth:wall.x+wall.y+(wall.w+wall.h)/2})),...objects.map(object=>({kind:'object',room,object,depth:objectDepth(object),seatPorts:object.renderPart?ports.filter(port=>port.furnitureId===object.furnitureId&&port.seat):[]}))];});
  for(const layer of layers)if(['bell','monitor'].includes(layer.object?.kind)){const counter=layers.find(other=>other.room.id===layer.room.id&&other.object?.furnitureId===layer.object.furnitureId&&other.object.kind==='counter');if(counter)layer.depth=Math.max(layer.depth,counter.depth+.02);}
  layers.sort((a,b)=>a.depth-b.depth);const boxes=layers.map(bounds),edges=layers.map(()=>[]),indegree=layers.map(()=>0);
- for(let i=0;i<layers.length;i++)for(let j=i+1;j<layers.length;j++)if(divider(layers[i])||divider(layers[j])){if(mountedOn(layers[i],layers[j]))connect(edges,indegree,j,i);else if(mountedOn(layers[j],layers[i]))connect(edges,indegree,i,j);else{const order=before(boxes[i],boxes[j]);if(order)connect(edges,indegree,order<0?i:j,order<0?j:i);}}
+ for(let i=0;i<layers.length;i++)for(let j=i+1;j<layers.length;j++){
+  const a=layers[i],b=layers[j],sameSeat=a.object?.renderPart&&b.object?.renderPart&&a.room.id===b.room.id&&a.object.furnitureId===b.object.furnitureId;
+  if(sameSeat&&(a.object.renderPart==='base'||b.object.renderPart==='base'))connect(edges,indegree,a.object.renderPart==='base'?i:j,a.object.renderPart==='base'?j:i);
+  else if(mountedOn(a,b))connect(edges,indegree,j,i);else if(mountedOn(b,a))connect(edges,indegree,i,j);else{const order=before(boxes[i],boxes[j]);if(order)connect(edges,indegree,order<0?i:j,order<0?j:i);}
+ }
  stored={key,layers,boxes,edges,indegree};cache.set(game,stored);return stored;
 }
 function ordered(layers,edges,indegree){
@@ -50,12 +52,20 @@ function ordered(layers,edges,indegree){
 export function sceneLayers(game,people){
  const base=staticScene(game),layers=[...base.layers],boxes=[...base.boxes],edges=base.edges.map(edge=>[...edge]),indegree=[...base.indegree];
  for(const person of people){
-  const index=layers.length;layers.push({kind:'person',person,depth:person.x+person.y+1});boxes.push(bounds(layers[index]));edges.push([]);indegree.push(0);
+  const offset=seatOffset(person,person.pose),index=layers.length;layers.push({kind:'person',person,depth:person.x+person.y+1+offset.x+offset.y});boxes.push(bounds(layers[index]));edges.push([]);indegree.push(0);
   if(person.role==='receptionist'&&person.hasSeat&&['working','preparing'].includes(person.state)){
    const counter=layers.findIndex(layer=>layer.object?.kind==='counter'&&layer.room.id===person.roomId);
    if(counter>=0&&layers[counter].depth>person.x+person.y+1){const hands=layers.length;layers.push({kind:'hands',person,depth:layers[counter].depth+.01});boxes.push(bounds(layers[hands]));edges.push([]);indegree.push(0);connect(edges,indegree,index,hands);connect(edges,indegree,counter,hands);}
   }
  }
- for(let i=0;i<base.layers.length;i++)if(divider(layers[i]))for(let j=base.layers.length;j<layers.length;j++){const order=before(boxes[i],boxes[j]);if(order)connect(edges,indegree,order<0?i:j,order<0?j:i);}
+ for(let i=0;i<base.layers.length;i++)for(let j=base.layers.length;j<layers.length;j++){
+  if(layers[j].kind!=='person')continue;
+  const object=layers[i].object,person=layers[j].person,port=object?.renderPart&&layers[i].seatPorts.find(p=>Math.hypot(p.x-person.x,p.y-person.y)<.28),sitting=person.pose?.sit>.02||person.state==='seated'||person.hasSeat&&['resting','working','preparing','idle'].includes(person.state);
+  if(port&&sitting){
+   if(object.renderPart==='base')connect(edges,indegree,i,j);
+   else if(object.renderPart==='back')connect(edges,indegree,[1,2].includes(object.rotation)?j:i,[1,2].includes(object.rotation)?i:j);
+   else{const order=before(boxes[i],boxes[j]);if(order)connect(edges,indegree,order<0?i:j,order<0?j:i);}
+  }else{const order=before(boxes[i],boxes[j]);if(order)connect(edges,indegree,order<0?i:j,order<0?j:i);}
+ }
  return ordered(layers,edges,indegree);
 }

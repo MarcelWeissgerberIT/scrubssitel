@@ -7,6 +7,7 @@ const makeCanvas=()=>document.createElement('canvas');
 // Frame the actual hair and face, including tall buns and children's portraits.
 // Candidates and hired employees use the same appearance resolver as the floor.
 export function drawCharacterPortrait(canvas,person,createCanvas=makeCanvas){
+ const identity=appearanceFor(person);
  const employee=!!(person.role||person.applicantId||person.castId&&!/^(patient|child)-/.test(person.castId));
  const actor={...person,child:Number.isFinite(person.age)?person.age<16:!!person.child,state:'idle',hasSeat:false};
  if(employee){actor.applicantId=person.applicantId||(typeof person.id==='string'?person.id:undefined);actor.id=portraitSeed(person);}
@@ -28,7 +29,7 @@ export function drawCharacterPortrait(canvas,person,createCanvas=makeCanvas){
  output.fillStyle='#ffffff55';output.beginPath();output.ellipse(97,99,84,86,0,0,Math.PI*2);output.fill();
  output.imageSmoothingEnabled=true;output.imageSmoothingQuality='high';
  output.drawImage(source,cropX,portraitTop,cropWidth,cropHeight,0,0,200,240);
- return {top,left,right,cropX,cropY:portraitTop,cropWidth,cropHeight};
+ return {identityKey:identity.key,gender:identity.gender,top,left,right,cropX,cropY:portraitTop,cropWidth,cropHeight};
 }
 
 export function characterPortrait(person){
