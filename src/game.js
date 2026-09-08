@@ -6,17 +6,21 @@ import {candidates,candidate,RECRUITMENT_FEE} from './recruitment.js';
 import {waitingSeats,waitingComfort} from './objects.js';
 import {insidePath,patientPoint,segmentBlocked} from './layout.js';
 import * as furnishing from './furnishing.js';
-export const GRID={w:24,h:18};
+import {BASE_GRID,gridFor,expand} from './expansion.js';
+export const GRID=BASE_GRID;
 export const ENTRY={x:12,y:16};
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const key=(x,y)=>`${x},${y}`;
 const names=['Alex','Sam','Robin','Jamie','Casey','Lou','Charlie','River','Jules','Taylor','Kim','Morgan','Rene','Ari','Noor','Sasha','Drew','Billie'];
 export class Game {
  constructor({level=1,mode='tutorial',seed=Date.now()}={}){
+  this.expansions=[];
   this.version=6;this.queueSerial=0;this.callSerial=0;this.calls=[];this.recruitmentRound=0;this.applicantIds=candidates(0).map(c=>c.id);this.mode=mode;this.level=level;this.rng=seed>>>0||1;this.clock=0;this.day=1;this.cash=50000;
   this.rep=60;this.cured=0;this.failed=0;this.left=0;this.cleanliness=95;this.rooms=[];this.staff=[];this.patients=[];this.logs=[];this.id=0;this.income=0;this.expenses=0;this.construction=0;this.completed=[];this.project=null;this.event=null;this.nextEvent=75;this.arrivalTimer=4;this.won=false;this.over=false;this.ledger=[];
   this.amenitySales={count:0,revenue:0,costs:0};this.admissionsOpen=false;this.calendar=0;this.year=1;this.month=1;this.yearStart={income:0,expenses:0,construction:0};this.accountOrigin={income:0,expenses:0,construction:0};this.financialYears=[];this.records=[];this.patientSerial=0;this.tutorial={chartRead:false};this.contracts=[];this.financing=0;this.modifiers=[];this.eventsSeen=[];this.curedByRoom={};
  }
+ get grid(){return gridFor(this.expansions);}
+ expand(id){return expand(this,id);}
  checkTutorial(){if(this.mode==='tutorial'&&!this.won&&guideIndex(this)>=GUIDE.length-1&&this.financialYears.some(y=>y.profit>=ANNUAL_TARGET)){this.won=true;this.log('completedTutorial');}}
  guide(){
   if(this.mode!=='tutorial'||this.won)return null;
@@ -52,16 +56,17 @@ export class Game {
  door(r){return {x:r.x+Math.floor(r.w/2),y:r.y<8?r.y+r.h:r.y-1};}
  occupied(x,y,rooms=this.rooms){return rooms.some(r=>x>=r.x&&x<r.x+r.w&&y>=r.y&&y<r.y+r.h);}
  path(from,to,rooms=this.rooms){
-  const start={x:clamp(Math.round(from.x),0,23),y:clamp(Math.round(from.y),0,17)},dest={x:Math.round(to.x),y:Math.round(to.y)};
+  const {w,h}=this.grid;if(!from||!to||![from.x,from.y,to.x,to.y].every(Number.isFinite)||[from,to].some(p=>p.x<0||p.x>w-1||p.y<0||p.y>h-1))return null;
+  const start={x:Math.round(from.x),y:Math.round(from.y)},dest={x:Math.round(to.x),y:Math.round(to.y)};
   const q=[start],prev=new Map([[key(start.x,start.y),null]]);let n=0;
   while(n<q.length){const p=q[n++];if(p.x===dest.x&&p.y===dest.y){const out=[];let c=p;while(c){out.unshift(c);c=prev.get(key(c.x,c.y));}return out.slice(1);}
-   for(const [dx,dy] of [[0,-1],[1,0],[-1,0],[0,1]]){const x=p.x+dx,y=p.y+dy,k=key(x,y);if(x<0||x>=24||y<0||y>=18||this.occupied(x,y,rooms)||prev.has(k))continue;prev.set(k,p);q.push({x,y});}
+   for(const [dx,dy] of [[0,-1],[1,0],[-1,0],[0,1]]){const x=p.x+dx,y=p.y+dy,k=key(x,y);if(x<0||x>=w||y<0||y>=h||this.occupied(x,y,rooms)||prev.has(k))continue;prev.set(k,p);q.push({x,y});}
   }return null;
  }
  placement(type,rect){
   const {x,y,w,h}=rect;if(!ROOMS[type]||!this.available(type))return 'invalidRoom';
   if(![x,y,w,h].every(Number.isInteger)||w<3||h<3)return 'smallRoom';
-  if(x<1||y<1||x+w>23||y+h>17||w>10||h>8)return 'invalidRoom';
+  if(x<1||y<1||x+w>this.grid.w-1||y+h>this.grid.h-1||w>10||h>8)return 'invalidRoom';
   if(ENTRY.x>=x&&ENTRY.x<x+w&&ENTRY.y>=y&&ENTRY.y<y+h)return 'badPlacement';
   for(let i=x;i<x+w;i++)for(let j=y;j<y+h;j++)if(this.occupied(i,j))return 'invalidRoom';
   // Keep people standing in corridors out of the construction footprint.
@@ -151,7 +156,7 @@ export class Game {
   if(!choices.length)return false;const {r,index,path}=choices[0];p.seatRoom=r.id;p.seatIndex=index;p.path=path;p.state='seatTravel';return true;
  }
 
- standingPoint(r,p){const d=this.door(r),spots=[];for(let radius=1;radius<=3;radius++)for(let dx=-radius;dx<=radius;dx++)for(let dy=-radius;dy<=radius;dy++){if(Math.abs(dx)+Math.abs(dy)!==radius)continue;const spot={x:d.x+dx,y:d.y+dy};if(spot.x<1||spot.x>22||spot.y<1||spot.y>16||this.occupied(spot.x,spot.y)||this.rooms.some(room=>{const door=this.door(room);return door.x===spot.x&&door.y===spot.y;})||this.patients.some(q=>q.id!==p.id&&([q,q.path.at(-1)].some(v=>v&&Math.hypot(v.x-spot.x,v.y-spot.y)<.6))))continue;const path=this.corridorPath(p,spot);if(path!==null)spots.push({spot,path});}return spots.sort((a,b)=>a.path.length-b.path.length)[0]||{spot:d,path:this.corridorPath(p,d)||[]};}
+ standingPoint(r,p){const d=this.door(r),spots=[],{w,h}=this.grid;for(let radius=1;radius<=3;radius++)for(let dx=-radius;dx<=radius;dx++)for(let dy=-radius;dy<=radius;dy++){if(Math.abs(dx)+Math.abs(dy)!==radius)continue;const spot={x:d.x+dx,y:d.y+dy};if(spot.x<1||spot.x>w-2||spot.y<1||spot.y>h-2||this.occupied(spot.x,spot.y)||this.rooms.some(room=>{const door=this.door(room);return door.x===spot.x&&door.y===spot.y;})||this.patients.some(q=>q.id!==p.id&&([q,q.path.at(-1)].some(v=>v&&Math.hypot(v.x-spot.x,v.y-spot.y)<.6))))continue;const path=this.corridorPath(p,spot);if(path!==null)spots.push({spot,path});}return spots.sort((a,b)=>a.path.length-b.path.length)[0]||{spot:d,path:this.corridorPath(p,d)||[]};}
  routePatient(p){const type=this.need(p);const choices=this.rooms.filter(r=>r.type===type&&r.staffId&&this.roomReady(r)).map(r=>({r,path:this.corridorPath(p,this.door(r))})).filter(v=>v.path!==null).sort((a,b)=>(this.queue(a.r)+(a.r.patientId?1:0))-(this.queue(b.r)+(b.r.patientId?1:0))||a.path.length-b.path.length);
   // Registration reserves a waiting seat independently of clinician availability.
   if(!choices.length){p.targetRoom=null;if(p.registered)this.reserveSeat(p);return;}
@@ -224,6 +229,8 @@ export class Game {
   if(data?.version===3){data=JSON.parse(JSON.stringify(data));data.version=4;data.queueSerial=0;data.callSerial=0;data.calls=[];const ordered=data.patients.slice().sort((a,b)=>{const at=p=>data.records.find(r=>r.id===p.id)?.timeline.filter(e=>['registered','diagnosed'].includes(e.code)).at(-1)?.time||0;return at(a)-at(b)||a.id-b.id;});for(const r of data.rooms){r.doorOpen=1;r.doorHeld=false;}for(const p of ordered){p.registered=['diagnosis','treatment'].includes(p.stage)||!!p.registered;p.age=data.records.find(r=>r.id===p.id)?.age||30;p.child=p.age<16;p.queueOrder=p.registered?++data.queueSerial:0;p.calledAt=null;if(['seated','seatTravel'].includes(p.state)){p.seatRoom=null;p.seatIndex=null;p.state='waiting';p.path=[];}}}
   if(data?.version===4){data=JSON.parse(JSON.stringify(data));data.version=5;migrateStaff(data);}
   if(!data||![5,6].includes(data.version)||!['tutorial','campaign','sandbox'].includes(data.mode)||![1,2,3].includes(data.level))throw Error('Invalid save');
+  if(!Object.hasOwn(data,'expansions'))data={...data,expansions:[]};
+  const grid=gridFor(data.expansions);
   // Older schema-six saves have no shop history; incomplete new histories still fail validation.
   if(!Object.hasOwn(data,'amenitySales')||data.patients?.some(p=>['amenity','amenityPurchased','amenityNextAt'].every(k=>!Object.hasOwn(p,k)))){
    data=JSON.parse(JSON.stringify(data));data.amenitySales??={count:0,revenue:0,costs:0};
@@ -232,18 +239,18 @@ export class Game {
   const isNum=v=>typeof v==='number'&&Number.isFinite(v);for(const key of ['rng','clock','day','cash','rep','cured','failed','left','cleanliness','id','income','expenses','construction','nextEvent','arrivalTimer'])if(!isNum(data[key]))throw Error('Invalid number');
   if(data.clock<0||data.rep<0||data.rep>100||!Array.isArray(data.rooms)||data.rooms.length>100||!Array.isArray(data.patients)||data.patients.length>60||!Array.isArray(data.staff)||data.staff.length>100)throw Error('Invalid entities');
   const ids=new Set();for(const entity of [...data.rooms,...data.staff,...data.patients]){if(!Number.isInteger(entity.id)||ids.has(entity.id))throw Error('Invalid id');ids.add(entity.id);}
-  for(const r of data.rooms){if(!ROOMS[r.type]||!['x','y','w','h','level','condition','progress'].every(k=>isNum(r[k]))||r.x<1||r.y<1||r.w<3||r.h<3||r.x+r.w>23||r.y+r.h>17||r.level<1||r.level>3)throw Error('Invalid room');}
+  for(const r of data.rooms){if(!ROOMS[r.type]||!['x','y','w','h','level','condition','progress'].every(k=>isNum(r[k]))||r.x<1||r.y<1||r.w<3||r.h<3||r.x+r.w>grid.w-1||r.y+r.h>grid.h-1||!Number.isInteger(r.level)||r.level<1||r.level>3)throw Error('Invalid room');}
   for(const s of data.staff)if(!CAST.some(c=>c.id===s.castId)||!isNum(s.fatigue)||!isNum(s.wage)||!isNum(s.skill)||typeof s.name!=='string')throw Error('Invalid staff');
-  for(const p of data.patients)if(!ILLNESSES.some(i=>i.id===p.illness)||!['waiting','travel','queue','seatTravel','seated','relocating','called','inside','service','roomExit','exit',...AMENITY_STATES].includes(p.state)||!['reception','diagnosis','treatment','exit'].includes(p.stage)||!isNum(p.x)||!isNum(p.y)||!isNum(p.patience)||!Array.isArray(p.path)||p.path.length>500||!p.path.every(v=>isNum(v.x)&&isNum(v.y))||typeof p.name!=='string')throw Error('Invalid patient');
+  for(const p of data.patients)if(!ILLNESSES.some(i=>i.id===p.illness)||!['waiting','travel','queue','seatTravel','seated','relocating','called','inside','service','roomExit','exit',...AMENITY_STATES].includes(p.state)||!['reception','diagnosis','treatment','exit'].includes(p.stage)||!isNum(p.x)||!isNum(p.y)||!isNum(p.patience)||!Array.isArray(p.path)||p.path.length>500||!p.path.every(v=>isNum(v.x)&&isNum(v.y)&&v.x>=0&&v.x<=grid.w-1&&v.y>=0&&v.y<=grid.h-1)||typeof p.name!=='string')throw Error('Invalid patient');
   if(!Array.isArray(data.completed)||!data.completed.every(id=>PROJECTS.some(p=>p.id===id))||!Array.isArray(data.logs)||!Array.isArray(data.ledger)||data.event&&!EVENTS.some(e=>e.id===data.event)||data.project&&(!PROJECTS.some(p=>p.id===data.project.id)||!isNum(data.project.progress)))throw Error('Invalid progress');
   if(data.id<Math.max(0,...ids))throw Error('Invalid counter');
   if(typeof data.won!=='boolean'||typeof data.over!=='boolean')throw Error('Invalid status');
   for(const s of data.staff){const original=s.applicantId?candidate(s.applicantId):CAST.find(c=>c.id===s.castId);if(!original||s.applicantId&&(s.castId!==original.castId||s.name!==original.name||s.personality!==original.personality||s.fatigueRate!==original.fatigueRate))throw Error('Invalid applicant');if(typeof s.resting!=='boolean'||s.personality!==(original.personality||'steady')||s.fatigueRate!==(original.fatigueRate||1)||s.role!==original.role||s.skill!==original.skill||s.wage!==original.wage||s.fatigue<0||s.fatigue>100||s.name.length>80)throw Error('Invalid employee');if(s.roomId!==null&&!data.rooms.some(r=>r.id===s.roomId&&r.staffId===s.id&&ROOMS[r.type].role===s.role))throw Error('Invalid assignment');}
   for(const r of data.rooms){if(r.staffId!==null&&!data.staff.some(s=>s.id===r.staffId&&s.roomId===r.id))throw Error('Invalid staffing');if(r.patientId!==null&&!data.patients.some(p=>p.id===r.patientId&&p.targetRoom===r.id&&['called','inside','service','roomExit'].includes(p.state)))throw Error('Invalid occupant');}
-  for(const p of data.patients){if(p.name.length>80||p.x<0||p.x>24||p.y<0||p.y>18||p.patience<0||p.patience>100)throw Error('Invalid patient bounds');if(p.targetRoom!==null&&!data.rooms.some(r=>r.id===p.targetRoom))throw Error('Invalid target');if(['called','inside','service','roomExit'].includes(p.state)&&!data.rooms.some(r=>r.id===p.targetRoom&&r.patientId===p.id))throw Error('Invalid service');}
+  for(const p of data.patients){if(p.name.length>80||p.x<0||p.x>grid.w-1||p.y<0||p.y>grid.h-1||p.patience<0||p.patience>100)throw Error('Invalid patient bounds');if(p.targetRoom!==null&&!data.rooms.some(r=>r.id===p.targetRoom))throw Error('Invalid target');if(['called','inside','service','roomExit'].includes(p.state)&&!data.rooms.some(r=>r.id===p.targetRoom&&r.patientId===p.id))throw Error('Invalid service');}
   for(let i=0;i<data.rooms.length;i++)for(let j=i+1;j<data.rooms.length;j++){const a=data.rooms[i],b=data.rooms[j];if(a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y)throw Error('Overlapping rooms');}
   if(data.logs.length>12||!data.logs.every(l=>isNum(l.id)&&isNum(l.time)&&typeof l.code==='string'&&typeof l.extra==='string'))throw Error('Invalid log');
-  const fields=['amenitySales','queueSerial','callSerial','calls','version','mode','level','rng','clock','day','cash','rep','cured','failed','left','cleanliness','rooms','staff','patients','logs','id','income','expenses','construction','completed','project','event','nextEvent','arrivalTimer','won','over','ledger','admissionsOpen','calendar','year','month','yearStart','accountOrigin','financialYears','records','patientSerial','tutorial','contracts','financing','modifiers','eventsSeen','curedByRoom','recruitmentRound','applicantIds'];
+  const fields=['expansions','amenitySales','queueSerial','callSerial','calls','version','mode','level','rng','clock','day','cash','rep','cured','failed','left','cleanliness','rooms','staff','patients','logs','id','income','expenses','construction','completed','project','event','nextEvent','arrivalTimer','won','over','ledger','admissionsOpen','calendar','year','month','yearStart','accountOrigin','financialYears','records','patientSerial','tutorial','contracts','financing','modifiers','eventsSeen','curedByRoom','recruitmentRound','applicantIds'];
   if(typeof data.admissionsOpen!=='boolean'||!isNum(data.calendar)||data.calendar<0||!Number.isInteger(data.year)||data.year<1||!Number.isInteger(data.month)||data.month<1||data.month>12||!Number.isInteger(data.patientSerial)||data.patientSerial<0||typeof data.tutorial?.chartRead!=='boolean')throw Error('Invalid calendar');
   if(!data.yearStart||!['income','expenses','construction'].every(k=>isNum(data.yearStart[k]))||!Array.isArray(data.financialYears)||!data.financialYears.every(y=>['year','income','expenses','construction','profit','closingCash'].every(k=>isNum(y[k]))))throw Error('Invalid accounts');
   const period=Math.floor((data.calendar+1e-7)/MONTH_SECONDS);if(data.day!==period+1||data.month!==period%12+1||data.year!==Math.floor(period/12)+1||data.financialYears.length!==data.year-1)throw Error('Inconsistent calendar');
