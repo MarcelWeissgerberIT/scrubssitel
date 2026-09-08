@@ -3,6 +3,8 @@ import {CharacterAnimator,SEAT_HEIGHT,mix} from './animation.js';
 import {CharacterModel} from './characters.js';
 import {GRID} from './game.js';
 import {roomObjects} from './objects.js';
+import {sceneLayers} from './scene.js';
+import {drawRoomObject} from './room-art.js';
 const shade=(color,amount)=>{let values;if(color.startsWith('#')){const n=parseInt(color.slice(1),16);values=[n>>16,(n>>8)&255,n&255];}else values=(color.match(/[\d.]+/g)||[0,0,0]).slice(0,3).map(Number);return `rgb(${values.map(n=>Math.max(0,Math.min(255,Math.round(n+amount)))).join(',')})`;};
 export class Renderer{
  constructor(canvas,options){this.canvas=canvas;this.ctx=canvas.getContext('2d');this.options=options;this.zoom=1;this.pan={x:0,y:0};this.hover=null;this.drag=null;this.pointer=null;this.keyboard={x:3,y:11};this.selected=null;this.lang='en';this.buildType=null;this.game=null;this.staffVisuals=new Map();this.hits=[];this.lastTime=0;this.guideRect=null;this.animator=new CharacterAnimator();this.characterModel=new CharacterModel(this.ctx);this.previousPatients=new Map();this.previousStaff=new Map();this.snapshotGame=null;
@@ -22,13 +24,23 @@ export class Renderer{
  project(x,y,z=0){return {x:this.ox+(x-y)*this.tw/2,y:this.oy+(x+y)*this.th/2-z*this.tw};}
  tile(e){const r=this.canvas.getBoundingClientRect(),x=e.clientX-r.left-this.ox,y=e.clientY-r.top-this.oy;return {x:Math.floor(x/this.tw+y/this.th),y:Math.floor(y/this.th-x/this.tw)};}
  rectangle(){const {start:a,end:b}=this.drag;return {x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.abs(a.x-b.x)+1,h:Math.abs(a.y-b.y)+1};}
- selectAt(pos,event){if(event){const bounds=this.canvas.getBoundingClientRect(),x=event.clientX-bounds.left,y=event.clientY-bounds.top;const hit=this.hits.slice().reverse().find(h=>x>=h.x&&x<=h.x+h.w&&y>=h.y&&y<=h.y+h.h);if(hit){this.options.onSelect(hit.type,hit.id);return;}}const p=this.game.patients.filter(p=>Math.abs(p.x-pos.x)<.8&&Math.abs(p.y-pos.y)<.8).at(-1);if(p)this.options.onSelect('patient',p.id);else {const r=this.game.rooms.find(r=>pos.x>=r.x&&pos.x<r.x+r.w&&pos.y>=r.y&&pos.y<r.y+r.h);this.options.onSelect(r?'room':null,r?.id);}}
+ selectAt(pos,event){if(event){const bounds=this.canvas.getBoundingClientRect(),x=event.clientX-bounds.left,y=event.clientY-bounds.top;const hit=this.hits.slice().reverse().find(h=>x>=h.x&&x<=h.x+h.w&&y>=h.y&&y<=h.y+h.h&&this.visibleHit(h,x,y));if(hit){this.options.onSelect(hit.type,hit.id);return;}}const p=this.game.patients.filter(p=>Math.abs(p.x-pos.x)<.8&&Math.abs(p.y-pos.y)<.8).at(-1);if(p)this.options.onSelect('patient',p.id);else {const r=this.game.rooms.find(r=>pos.x>=r.x&&pos.x<r.x+r.w&&pos.y>=r.y&&pos.y<r.y+r.h);this.options.onSelect(r?'room':null,r?.id);}}
+ // Test the painted silhouette only when clicked, without another per-frame render.
+ visibleHit(hit,x,y){
+  this.hitCanvas??=typeof OffscreenCanvas==='function'?new OffscreenCanvas(1,1):document.createElement('canvas');
+  const canvas=this.hitCanvas;canvas.width=1;canvas.height=1;const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.translate(-Math.floor(x),-Math.floor(y));
+  if(hit.type==='object'){
+   const probe=Object.assign(Object.create(this),{ctx,hits:[],selected:null,visualDoors:new Map(this.visualDoors)});
+   probe.furniture(hit.room,this.lastTime,[hit.object]);
+  }else new CharacterModel(ctx).draw(hit.person,hit.pose,this.project(hit.person.x+.5,hit.person.y+.5),this.tw,hit.part);
+  return ctx.getImageData(0,0,1,1).data[3]>20;
+ }
  poly(points,color,stroke){const c=this.ctx;c.beginPath();points.forEach((p,i)=>i?c.lineTo(p.x,p.y):c.moveTo(p.x,p.y));c.closePath();c.fillStyle=color;c.fill();if(stroke){c.strokeStyle=stroke;c.lineWidth=.6;c.stroke();}}
  tileFace(x,y,w,h,z,color,stroke){this.poly([this.project(x,y,z),this.project(x+w,y,z),this.project(x+w,y+h,z),this.project(x,y+h,z)],color,stroke);}
  box(x,y,w,h,z,color,base=0){const p=(a,b,c)=>this.project(a,b,c);this.poly([p(x+w,y,base),p(x+w,y+h,base),p(x+w,y+h,z),p(x+w,y,z)],shade(color,-28));this.poly([p(x,y+h,base),p(x+w,y+h,base),p(x+w,y+h,z),p(x,y+h,z)],shade(color,-13));this.tileFace(x,y,w,h,z,shade(color,12));}
  ellipse(x,y,rx,ry,color){const c=this.ctx;c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fillStyle=color;c.fill();}
  plant(x,y){this.box(x-.22,y-.22,.45,.45,.4,'#c6a788');const p=this.project(x,y,.75);this.ellipse(p.x,p.y,this.tw*.27,this.tw*.31,'#5b8b62');this.ellipse(p.x-this.tw*.13,p.y+this.tw*.04,this.tw*.16,this.tw*.2,'#73a576');}
- furniture(r,time=0){for(const o of roomObjects(r)){
+ furniture(r,time=0,objects=roomObjects(r)){for(const o of objects){
   const {x,y,w,h,z,kind}=o,c=this.ctx;
   if(kind==='door'){
 
@@ -38,51 +50,12 @@ export class Renderer{
    this.poly([this.project(x,y,.04),this.project(xx,yy,.04),this.project(xx,yy,1.07),this.project(x,y,1.07)],'#82b9ad','#507f74');
    const glass=[this.project(x+(xx-x)*.18,y+(yy-y)*.18,.62),this.project(x+(xx-x)*.8,y+(yy-y)*.8,.62),this.project(x+(xx-x)*.8,y+(yy-y)*.8,.92),this.project(x+(xx-x)*.18,y+(yy-y)*.18,.92)];this.poly(glass,'#d5eee3','#b1d0c5');
    const knob=this.project(x+(xx-x)*.8,y+(yy-y)*.8,.44);this.ellipse(knob.x,knob.y,this.tw*.035,this.tw*.04,'#ffe3a0');
-  }else if(kind==='chair'||kind==='sofa'){
-   const col=kind==='sofa'?'#8ab7ae':'#dbad80';this.box(x+.08,y+.07,w-.16,h-.08,.20,'#aa8867');this.box(x,y,w,h,.31,col);this.box(x,y-.02,w,.15,.65,col);this.box(x-.035,y,.105,h,.45,col);this.box(x+w-.07,y,.105,h,.45,col);
-   const count=o.seats||1;for(let i=0;i<count;i++){this.box(x+.1+i*(w-.2)/count,y+.16,(w-.24)/count,h-.23,.34,kind==='sofa'?'#b8d8c6':'#f7d7a5');const q=this.project(x+.1+(i+.5)*(w-.2)/count,y+.09,.53);this.ellipse(q.x,q.y,this.tw*.022,this.tw*.025,'#668e81');}
-  }else if(['gp','pharmacy','therapy','surgery','lab'].includes(kind)){this.machine(r,time);}
-  else if(kind==='plant')this.plant(x+.2,y+.2);
-  else if(kind==='counter'){this.box(x+.08,y+.08,w-.16,h-.16,.50,'#cfa77c');this.box(x-.03,y-.03,w+.06,h+.06,.57,'#eee0bd',.49);for(let i=0;i<w/.4;i++){const q=this.project(x+.2+i*.4,y+h,.27);this.ellipse(q.x,q.y,this.tw*.03,this.tw*.10,'#e7c79c');}}
-  else if(kind==='monitor'){this.box(x+.2,y,.12,.2,z-.12,'#527b77',.56);this.box(x,y,w,h,z,'#416e6a',z-.3);const q=this.project(x+w/2,y+h,z-.10);c.fillStyle='#d9eedc';c.font=`${this.tw*.13}px sans-serif`;c.fillText('▤',q.x-this.tw*.07,q.y);}
-  else if(kind==='bell'){const q=this.project(x+.2,y+.2,.62+(r.patientId?Math.sin(time*8)*.015:0));this.ellipse(q.x,q.y,this.tw*.15,this.tw*.08,'#b99853');this.ellipse(q.x,q.y-this.tw*.045,this.tw*.11,this.tw*.09,'#f8d27b');}
-  else if(kind==='toys'){this.tileFace(x-.06,y-.06,w+.12,h+.12,.04,'#f4d892');for(let i=0;i<5;i++){const xx=x+.12+i*.18,yy=y+.15+(i%2)*.2;this.box(xx,yy,.19,.19,.13+(i%3)*.07,['#c98988','#8ebca8','#97b5d2'][i%3]);}const q=this.project(x+.8,y+.25,.2);this.duck(q.x,q.y,this.tw*.25,Math.sin(time)*.035);this.box(x,y+.45,.4,.24,.3,'#cb9f74');}
-  else if(kind==='books'){this.box(x+.06,y+.05,w-.12,h-.1,.3,'#b29b7a');this.box(x,y,w,h,.36,'#e8cfaa');for(let i=0;i<3;i++)this.tileFace(x+.08+i*.17,y+.08,.23,.32,.38+i*.015,['#91bbac','#dba599','#f3dc95'][i]);}
-  else if(kind==='sink'){this.box(x,y,w,h,.49,'#a2c2b6');this.box(x-.025,y-.025,w+.05,h+.05,.55,'#eaf0df');const q=this.project(x+w*.5,y+h*.5,.56);this.ellipse(q.x,q.y,this.tw*w*.22,this.tw*.08,'#83a8a0');this.box(x+w*.5,y,.06,.16,.72,'#c9d5d1',.55);}
-  else if(kind==='toilet'){this.box(x+.1,y,.6,.25,.7,'#e1e9da');const q=this.project(x+.4,y+.65,.32);this.ellipse(q.x,q.y,this.tw*.3,this.tw*.16,'#f6f4e7');this.ellipse(q.x,q.y,this.tw*.16,this.tw*.08,'#a8bdb4');if(x>r.x+.4)this.box(x-.18,y,.08,1.35,1.05,'#9bbfb5');}
-  else if(kind==='coffee'){this.box(x,y,w,h,.8,'#466f65');this.box(x+.06,y+.05,w-.12,h-.1,1.05,'#759890',.8);const q=this.project(x+w*.5,y+h,.66);this.ellipse(q.x,q.y,this.tw*.11,this.tw*.09,'#f4e7bd');}
-  else if(kind==='stool'){this.box(x+.15,y+.15,.15,.15,.28,'#6e9187');this.box(x,y,w,h,.33,'#a5cdb7');}
-  else if(kind==='cabinet'){this.box(x,y,w,h,z,'#c2d6c4');for(let i=0;i<3;i++){const q=this.project(x+w*.5,y+h,.14+i*.23);this.ellipse(q.x,q.y,this.tw*.055,this.tw*.018,'#7b9f8e');}}
+  }else drawRoomObject(this,r,o,time);
   const points=[this.project(x,y,z),this.project(x+w,y,z),this.project(x+w,y+h,0),this.project(x,y+h,0)],left=Math.min(...points.map(p=>p.x)),top=Math.min(...points.map(p=>p.y)),right=Math.max(...points.map(p=>p.x)),bottom=Math.max(...points.map(p=>p.y));
-  this.hits.push({x:left,y:top,w:Math.max(12,right-left),h:Math.max(12,bottom-top),type:'object',id:o.id});
+  const padding=this.tw*.28;this.hits.push({x:left-padding,y:top-padding,w:Math.max(12,right-left)+padding*2,h:Math.max(12,bottom-top)+padding*2,type:'object',id:o.id,room:r,object:o});
   if(this.selected?.type==='object'&&this.selected.id===o.id){c.strokeStyle='#d7a449';c.lineWidth=2;c.beginPath();points.forEach((p,i)=>i?c.lineTo(p.x,p.y):c.moveTo(p.x,p.y));c.closePath();c.stroke();}
  }}
 
- machine(r,time){
-  const c=this.ctx,x=r.x,y=r.y,w=r.w,h=r.h,active=!!r.patientId&&this.game.patients.some(p=>p.id===r.patientId&&p.state==='service'),pulse=active?Math.sin(time*7):0;
-  const cx=x+1.05,cy=y+1.05,p=this.project(cx,cy,.65),u=this.tw;
-  this.box(cx-.8,cy-.6,1.6,1.2,.38,'#719b97');this.box(cx-.72,cy-.54,1.44,1.08,.47,'#dfe9df');
-  const circle=(xx,yy,rad,color)=>this.ellipse(xx,yy,rad,rad,color);
-  const line=(points,color,width)=>{c.beginPath();points.forEach((v,i)=>i?c.lineTo(v[0],v[1]):c.moveTo(v[0],v[1]));c.strokeStyle=color;c.lineWidth=width;c.lineCap='round';c.stroke();};
-  if(r.type==='gp'){
-   const q=this.project(cx,cy,.98);circle(q.x,q.y,u*.58,'#5b9c9a');circle(q.x,q.y,u*.44,'#c9eee4');circle(q.x,q.y,u*.34,'#f1fcdf');
-   c.save();c.translate(q.x,q.y);c.rotate(active?time*2:0);for(let i=0;i<8;i++){c.rotate(Math.PI/4);circle(0,-u*.51,u*.035,i%2?'#ffe29b':'#e5fff7');}c.restore();
-   this.duck(q.x,q.y+u*.04,u*.55,active?pulse*.05:0);
-   if(active){line([[q.x-u*.3,q.y+pulse*u*.25],[q.x+u*.3,q.y+pulse*u*.25]],'#65cbb888',u*.04);this.particles(q.x,q.y-u*.5,time,'#fff3a6','?');}
-  }else if(r.type==='pharmacy'){
-   for(let i=0;i<2;i++){const q=this.project(cx-.25+i*.65,cy-.1,1.05);c.fillStyle='#c0ebe6';c.beginPath();c.roundRect(q.x-u*.18,q.y-u*.45,u*.36,u*.75,u*.1);c.fill();c.fillStyle=i?'#d39a6d':'#8ed4ae';c.fillRect(q.x-u*.14,q.y-u*.17,u*.28,u*.43);this.ellipse(q.x,q.y-u*.45,u*.22,u*.075,'#638e91');for(let b=0;b<4;b++)circle(q.x+Math.sin(b*9)*u*.07,q.y+u*.23-((time*(active?.55:.08)+b*.16)%.5)*u,u*.025,'#fff5cc');}
-   const q=this.project(cx+.3,cy+.65,.6);line([[q.x-u*.3,q.y-u*.65],[q.x+u*.27,q.y-u*.65],[q.x+u*.27,q.y-u*.18]],'#b67c54',u*.12);c.fillStyle='#faf4db';c.beginPath();c.roundRect(q.x-u*.26,q.y-u*.13,u*.46,u*.38,u*.08);c.fill();circle(q.x-u*.11,q.y+u*.04,u*.025,'#634b3f');circle(q.x+u*.06,q.y+u*.04,u*.025,'#634b3f');if(active)this.particles(q.x,q.y-u*.2,time,'#fffdf0','~');
-  }else if(r.type==='surgery'){
-   const q=this.project(cx,cy,1.05);this.ellipse(q.x,q.y,u*.48,u*.64,'#d5ae76');this.ellipse(q.x,q.y,u*.37,u*.52,'#c2e8e6');for(let i=0;i<10;i++){const angle=i*Math.PI/5;circle(q.x+Math.cos(angle)*u*.43,q.y+Math.sin(angle)*u*.58,u*.045,active&&i%2===Math.floor(time*3)%2?'#fffbc0':'#f8e4b2');}
-   circle(q.x-u*.13,q.y-u*.03,u*.035,'#56867f');circle(q.x+u*.13,q.y-u*.03,u*.035,'#56867f');c.beginPath();c.arc(q.x,q.y+u*.08,u*.2,.1,Math.PI-.1);c.strokeStyle='#cf7d83';c.lineWidth=u*.05;c.stroke();const iron=this.project(cx+.75,cy+.45,.73+(active?pulse*.09:0));this.ellipse(iron.x,iron.y,u*.28,u*.12,'#cb91b5');line([[iron.x-u*.13,iron.y-u*.08],[iron.x-u*.08,iron.y-u*.25],[iron.x+u*.12,iron.y-u*.25],[iron.x+u*.16,iron.y-u*.08]],'#915e89',u*.07);if(active)this.particles(q.x,q.y-u*.6,time,'#fff4b7','✦');
-  }else if(r.type==='therapy'){
-   const q=this.project(cx,cy,.96);for(let i=0;i<5;i++)circle(q.x+(i-2)*u*.18,q.y-Math.sin(i)*u*.09,u*.24,'#e7e4fa');this.duck(q.x,q.y+u*.05,u*.42,pulse*.04);if(active)this.particles(q.x,q.y-u*.35,time,'#bba0dd','z');this.box(cx-.4,cy+.9,.85,.7,.45,'#bc99cf');
-  }else{
-   const q=this.project(cx,cy,.9);this.duck(q.x,q.y,u*.55,Math.sin(time*3)*.05);for(let i=0;i<3;i++){const v=this.project(cx-.5+i*.45,cy+.7,.7);line([[v.x,v.y-u*.28],[v.x,v.y+u*.13]],['#93bfc9','#dca0b9','#acc48b'][i],u*.13);}if(this.game.project)this.particles(q.x,q.y-u*.4,time,'#e2efb8','!');
-  }
-
-  const sign=this.project(cx,cy+1.05,.05);c.font=`700 ${Math.max(8,u*.19)}px sans-serif`;c.fillStyle='#446a60';c.textAlign='center';const titles={gp:['QUACK-O-SCAN','QUAK-O-SKOP'],pharmacy:['DECAF 3000','ENTKOFFEINATOR'],surgery:['SMILE PRESS','GRINSEBÜGLER'],therapy:['DREAM STEAM','TRAUMPUSTER'],lab:['DUCK SCIENCE','ENTENFORSCHUNG']};c.fillText(titles[r.type][this.lang==='de'?1:0],sign.x,sign.y);c.textAlign='left';
- }
  duck(x,y,size,tilt=0){const c=this.ctx;c.save();c.translate(x,y);c.rotate(tilt);this.ellipse(0,0,size*.48,size*.3,'#ffcf63');this.ellipse(size*.19,-size*.28,size*.27,size*.26,'#ffdf79');this.ellipse(size*.45,-size*.22,size*.16,size*.08,'#e99951');this.ellipse(size*.25,-size*.33,size*.035,size*.043,'#4c5350');this.ellipse(-size*.12,size*.01,size*.2,size*.13,'#efb74e');c.restore();}
  particles(x,y,time,color,glyph){const c=this.ctx;c.fillStyle=color;c.font=`bold ${Math.max(12,this.tw*.26)}px sans-serif`;for(let i=0;i<3;i++){const phase=(time*.7+i/3)%1;c.globalAlpha=1-phase;c.fillText(glyph,x+Math.sin(i*4+time)*this.tw*.2,y-phase*this.tw*.7);}c.globalAlpha=1;}
  captureStep(game){this.snapshotGame=game;this.previousStaff=new Map(game.staff.map(s=>[s.id,{x:s.x,y:s.y}]));this.previousPatients=new Map(game.patients.map(p=>[p.id,{x:p.x,y:p.y}]));}
@@ -90,7 +63,7 @@ export class Renderer{
   const c=this.ctx,p=this.project(person.x+.5,person.y+.5),pose=this.animator.update(person,time);
   this.ellipse(p.x,p.y+this.tw*.025,this.tw*.145,this.tw*.06,'#24463c27');
   const bounds=this.characterModel.draw(person,pose,p,this.tw),height=bounds.height,width=Math.max(this.tw*.38,bounds.width);
-  this.hits.push({x:p.x-width/2,y:p.y-height,w:width,h:height+4,type:staff?'staff':'patient',id:person.id});
+  this.hits.push({x:p.x-width/2,y:p.y-height,w:width,h:height+4,type:staff?'staff':'patient',id:person.id,person,pose});
   const bubble=person.cured?'heart':person.state==='called'?'call':person.patience<35?'clock':staff&&person.resting?'coffee':person.state==='seated'?(person.child?'bear':['book','dream','duck'][person.id%3]):person.state==='service'?'duck':staff&&person.state==='working'?'care':!staff&&person.stage==='reception'?'ticket':null;
   if(bubble){const yy=p.y-height-5,size=Math.max(13,this.tw*.32);c.fillStyle='#fffff6ed';c.beginPath();c.roundRect(p.x-size*.65,yy-size,size*1.3,size*1.3,5);c.fill();c.beginPath();c.moveTo(p.x-3,yy+size*.3);c.lineTo(p.x,yy+size*.48);c.lineTo(p.x+3,yy+size*.3);c.fill();c.fillStyle=person.patience<35?'#c47455':'#4b927b';c.font=`bold ${size}px sans-serif`;c.textAlign='center';this.bubbleIcon(bubble,p.x,yy-size*.36,size*.87);c.textAlign='left';}
   if(this.selected?.id===person.id){c.strokeStyle='#e9ae4d';c.lineWidth=2;c.beginPath();c.ellipse(p.x,p.y+this.tw*.03,this.tw*.22,this.tw*.09,0,0,Math.PI*2);c.stroke();}
@@ -130,9 +103,16 @@ export class Renderer{
   for(const r of [...game.rooms].sort((a,b)=>(a.x+a.y)-(b.x+b.y))){const col=ROOMS[r.type].color;this.tileFace(r.x,r.y,r.w,r.h,.025,col);for(let x=r.x;x<r.x+r.w;x++)for(let y=r.y;y<r.y+r.h;y++)this.tileFace(x,y,1,1,.03,(x+y)%2?col:shade(col,7),'#ffffff35');if(r.type==='waiting'){const door=game.door(r);for(let x=r.x;x<r.x+r.w;x++)if(!(r.y>=8&&x===door.x))this.box(x,r.y,1,.12,.27,shade(col,18));this.box(r.x,r.y,.12,r.h,.27,shade(col,12));}else if(r.y<8)this.box(r.x,r.y,r.w,.12,1.2,shade(col,25));else{const door=game.door(r);for(let x=r.x;x<r.x+r.w;x++)if(x!==door.x)this.box(x,r.y,1,.12,1.2,shade(col,25));}if(r.type!=='waiting')this.box(r.x,r.y,.12,r.h,1.2,shade(col,15));
    // Low front partitions leave all action visible. The real door opens toward the central corridor.
    const d=game.door(r);for(let x=r.x;x<r.x+r.w;x++)if(!(r.y<8&&x===d.x))this.box(x,r.y+r.h-.12,1,.12,.27,shade(col,3));this.box(r.x+r.w-.12,r.y,.12,r.h,.27,shade(col,-5));
-   this.furniture(r,time);if(this.selected?.type==='room'&&this.selected.id===r.id){const pts=[this.project(r.x,r.y,.1),this.project(r.x+r.w,r.y,.1),this.project(r.x+r.w,r.y+r.h,.1),this.project(r.x,r.y+r.h,.1)];c.beginPath();pts.forEach((p,i)=>i?c.lineTo(p.x,p.y):c.moveTo(p.x,p.y));c.closePath();c.strokeStyle='#fff7bc';c.lineWidth=3;c.stroke();}}
+   if(this.selected?.type==='room'&&this.selected.id===r.id){const pts=[this.project(r.x,r.y,.1),this.project(r.x+r.w,r.y,.1),this.project(r.x+r.w,r.y+r.h,.1),this.project(r.x,r.y+r.h,.1)];c.beginPath();pts.forEach((p,i)=>i?c.lineTo(p.x,p.y):c.moveTo(p.x,p.y));c.closePath();c.strokeStyle='#fff7bc';c.lineWidth=3;c.stroke();}}
   const people=game.patients.map(p=>{const previous=this.snapshotGame===game?this.previousPatients.get(p.id):null,r=game.room(p.targetRoom),lookYaw=p.state==='seated'?0:p.state==='service'&&r?Math.atan2(r.x+1.05-p.x,r.y+1.05-p.y):undefined;return {...p,x:previous?mix(previous.x,p.x,alpha):p.x,y:previous?mix(previous.y,p.y,alpha):p.y,staff:false,lookYaw};});for(const staff of game.staff)people.push(this.staffActor(staff,game,time,alpha));
-  for(const p of people.sort((a,b)=>(a.x+a.y)-(b.x+b.y)))this.person(p,p.staff,time);
+  for(const layer of sceneLayers(game,people)){
+   if(layer.kind==='object')this.furniture(layer.room,time,[layer.object]);
+   else if(layer.kind==='person')this.person(layer.person,layer.person.staff,time);
+   else{
+    const p=layer.person,a=this.animator.actors.get(p.id);
+    if(a?.work>.1){this.characterModel.draw(p,a,this.project(p.x+.5,p.y+.5),this.tw,'hands');const hit=this.hits.find(h=>h.type==='staff'&&h.id===p.id);if(hit)this.hits.push({...hit,part:'hands'});}
+   }
+  }
   for(const r of game.rooms)this.label(r);
   if(this.guideRect&&!this.buildType){const r=this.guideRect;this.tileFace(r.x,r.y,r.w,r.h,.06,'#e6bc5b25','#daa548');const p=this.project(r.x+r.w/2,r.y+r.h/2,.12);c.font='600 13px sans-serif';c.fillStyle='#a47c30';c.textAlign='center';c.fillText(tr(ROOMS[r.type].name,this.lang)+' +',p.x,p.y);c.textAlign='left';}
   if(this.buildType){const rect=this.drag?this.rectangle():this.hover?{...this.hover,w:3,h:3}:null;if(rect){const valid=!game.placement(this.buildType,rect);this.tileFace(rect.x,rect.y,rect.w,rect.h,.08,valid?'#d5eb6a99':'#e77f7299','#ffffff');const p=this.project(rect.x+rect.w/2,rect.y+rect.h/2,.1);c.font='bold 14px sans-serif';c.fillStyle='#234740';c.textAlign='center';c.fillText(`${rect.w} × ${rect.h}`,p.x,p.y);c.textAlign='left';}}

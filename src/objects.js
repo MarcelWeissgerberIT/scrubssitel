@@ -10,6 +10,8 @@ export const OBJECT_INFO={
  monitor:[['Queue commander','Wartelisten-Wächter'],['The registration list. Doctors call the oldest waiting appointment as soon as a room and its clinician are ready.','Die Anmeldeliste. Sobald Raum und Behandler frei sind, wird der älteste wartende Termin aufgerufen.']],
  bell:[['Ding, not a diagnosis','Ding ist keine Diagnose'],['The reception bell. Please ring with your finger, not your entire personality. Decorative; hiring reception staff makes registration work.','Die Empfangsglocke. Bitte mit dem Finger klingeln, nicht mit der gesamten Persönlichkeit. Dekoration; für die Anmeldung braucht es Personal.']],
  stool:[['Spin doctor stool','Dreh-und-Angel-Stuhl'],['A seat for staff. Staff recover fatigue during breaks in the staff room.','Ein Personalsitz. Müdigkeit erholt sich in Pausen im Personalraum.']],
+ poster:[['Doctor Duck’s wall chart','Doktor Entes Wandbild'],['A cheerful reminder: wash your hands, then believe in the duck. Decorative clinic art.','Eine freundliche Erinnerung: Hände waschen, dann an die Ente glauben. Dekoration für die Klinik.']],
+ clock:[['The appointment optimist','Der Termin-Optimist'],['The clinic clock runs while the hospital is open. It has never admitted to being behind schedule.','Die Klinikuhr läuft während der Öffnung. Sie behauptet weiterhin, im Zeitplan zu sein.']],
  gp:[['Quack-o-scan','Quak-o-skop'],['The doctor diagnoses imaginary ailments here. A spinning duck is reassuringly scientific. Upgrading the room speeds up consultations.','Hier diagnostiziert der Arzt Fantasiekrankheiten. Eine rotierende Ente wirkt überzeugend wissenschaftlich. Raumausbau beschleunigt die Sprechstunde.']],
  pharmacy:[['Decaf 3000','Entkoffeinator 3000'],['Nurses treat caffeine jitters and clipboard fever. Upgrade the room for faster treatment and a better cure chance.','Pflegekräfte behandeln Koffeinzittern und Klemmbrettfieber. Raumausbau verbessert Tempo und Heilungschance.']],
  therapy:[['Dream steamer','Traumpuster'],['A doctor treats daydreams that escaped their owner. Room upgrades improve treatment.','Ein Arzt behandelt Tagträume, die ihrem Besitzer entwischt sind. Raumausbau verbessert die Behandlung.']],
@@ -27,10 +29,11 @@ export function roomObjects(r){const out=[],add=(kind,key,x,y,w=.7,h=.6,z=.8,ext
   const seats=waitingSeats(r);seats.forEach((s,i)=>{if(s.kind==='sofa'&&seats[i-1]?.kind==='sofa'&&seats[i-1].y===s.y)return;const count=s.kind==='sofa'?seats.filter(v=>v.kind==='sofa'&&v.y===s.y).length:1;add(s.kind,`seat-${i}`,s.x+.12,s.y+.2,.76+(count-1)*.85,.7,.7,{seatIndex:i,seats:count});});
   add('toys','toys',x+.25,y+h-1.0,1.15,.7,.45);add('books','books',x+w-1.15,y+h-.9,.7,.55,.4);add('plant','plant',x+w-.4,y+.2,.4,.4,.85);return out;
  }
- if(r.type==='reception'){add('stool','stool',x+w*.5-.25,y+.38,.5,.5,.32);add('counter','counter',x+.5,y+1,w-1,.8,.56);add('monitor','monitor',x+w/2,y+1.2,.5,.2,.91);add('bell','bell',x+.75,y+1.25,.4,.4,.72);add('cabinet','cabinet',x+.25,y+.2,.65,.5,.65);}
+ if(r.type==='reception'){add('stool','stool',x+w*.5-.25,y+.38,.5,.5,.76,{seatHeight:.32});add('counter','counter',x+.5,y+1,w-1,.8,.56);add('monitor','monitor',x+w/2,y+1.2,.5,.2,.91);add('bell','bell',x+.75,y+1.25,.4,.4,.72);add('cabinet','cabinet',x+.25,y+.2,.65,.5,.65);}
  else if(['gp','pharmacy','therapy','surgery','lab'].includes(r.type)){add(r.type,'machine',x+.25,y+.45,1.65,1.9,1.7);add('cabinet','cabinet',x+w-1,y+.2,.65,.55,.85);add('sink','sink',x+.22,y+h-1,.65,.55,.55);}
  else if(r.type==='lounge'){add('sofa','sofa',x+.4,y+.4,w-1,.8,.7,{seats:Math.floor((w-1)/.8)});add('books','table',x+1.3,y+2,1.2,.7,.35);add('coffee','coffee',x+w-1,y+h-1.1,.7,.6,1.1);}
  else if(r.type==='toilet'){for(let i=0;i<Math.max(1,Math.floor(w/1.3));i++)add('toilet',`wc-${i}`,x+.3+i*1.25,y+.3,.8,1,.75);add('sink','sink',x+.5,y+h-.8,w-1,.5,.55);}
+ add('poster','poster',x+w-.94,y+.13,.62,.035,1.13);add('clock','clock',x+.28,y+.13,.3,.035,1.13);
  if(r.type!=='toilet')add('plant','plant',x+w-.45,y+h-.5,.4,.4,.85);return out;
 }
 export function findObject(game,id){for(const r of game.rooms){const object=roomObjects(r).find(o=>o.id===id);if(object)return object;}return null;}

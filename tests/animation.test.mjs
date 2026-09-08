@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {CharacterAnimator,stepPose,skeleton,STRIDE,CHARACTER_SCALE} from '../src/animation.js';
+import {CharacterAnimator,stepPose,skeleton,STRIDE,CHARACTER_SCALE,characterScale,SEAT_HEIGHT,HIP_RADIUS} from '../src/animation.js';
 import {Renderer} from '../src/renderer.js';
 import {LOOKS} from '../src/characters.js';
 import {Game} from '../src/game.js';
 import {CAST} from '../src/content.js';
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-7,`${a} != ${b}`);
 test('gait follows actual distance at different frame rates and holds direction after stopping',()=>{
- let expected;for(const fps of [10,30,60,120]){const animator=new CharacterAnimator(),p={id:1,x:0,y:0,state:'travel'};animator.update(p,0);let pose;for(let i=1;i<=fps;i++){p.x=i/fps*2.5;pose=animator.update(p,i/fps);}near(pose.phase,2.5/STRIDE*Math.PI*2);if(expected)near(pose.yaw,expected.yaw);expected=pose;const phase=pose.phase,yaw=pose.yaw;for(let i=1;i<=fps;i++)pose=animator.update(p,1+i/fps);near(pose.phase,phase);near(pose.yaw,yaw);assert.ok(pose.walk<.0001);}
+ let expected;for(const fps of [10,30,60,120]){const animator=new CharacterAnimator(),p={id:1,x:0,y:0,state:'travel'};animator.update(p,0);let pose;for(let i=1;i<=fps;i++){p.x=i/fps*2.5;pose=animator.update(p,i/fps);}near(pose.phase,2.5/(STRIDE*characterScale(p))*Math.PI*2);if(expected)near(pose.yaw,expected.yaw);expected=pose;const phase=pose.phase,yaw=pose.yaw;for(let i=1;i<=fps;i++)pose=animator.update(p,1+i/fps);near(pose.phase,phase);near(pose.yaw,yaw);assert.ok(pose.walk<.0001);}
 });
 test('a planted foot stays fixed in world space and each complete step cycle closes',()=>{
  const start=stepPose(0);for(let t=0;t<.55;t+=.025){const pose=stepPose(t*Math.PI*2);assert.ok(pose.contact);near(pose.lift,0);near(t*STRIDE+pose.forward,start.forward);}
@@ -31,4 +31,16 @@ test('all original staff and patients have complete modeled appearances at the s
 
 test('break seat reservations persist when another employee leaves or joins the lounge',()=>{
  const game=new Game({seed:1});game.addRoom('lounge',{x:2,y:2,w:5,h:3});const employees=['milo','bea','otto'].map(id=>game.hire(id).staff);game.admissionsOpen=true;game.arrivalTimer=1e9;game.nextEvent=1e9;game.requestBreak(employees[0].id);game.requestBreak(employees[1].id);game.update(.05);const roomId=employees[1].breakRoomId,index=employees[1].breakSeatIndex;assert.notEqual(index,null);game.dismiss(employees[0].id);game.requestBreak(employees[2].id);game.update(.05);assert.equal(employees[1].breakRoomId,roomId);assert.equal(employees[1].breakSeatIndex,index);assert.notEqual(employees[2].breakSeatIndex,index);
+});
+
+test('adult and child support feet retain their world position through a planted step',()=>{
+ for(const child of [false,true])for(let heading=0;heading<8;heading++){
+  const yaw=heading*Math.PI/4,p={id:1,x:0,y:0,child,state:'travel'},animator=new CharacterAnimator(),scale=characterScale(p);animator.update(p,0);const initial=stepPose(0).forward*scale;
+  for(let i=1;i<=30;i++){const distance=i/30*STRIDE*scale*.5;p.x=Math.sin(yaw)*distance;p.y=Math.cos(yaw)*distance;const a=animator.update(p,i/60),foot=stepPose(a.phase);assert.ok(foot.contact);near(p.x+Math.sin(yaw)*foot.forward*scale,Math.sin(yaw)*initial);near(p.y+Math.cos(yaw)*foot.forward*scale,Math.cos(yaw)*initial);}
+ }
+});
+
+test('seated staff start on their chair and all ages meet the actual cushion height',()=>{
+ for(const p of [{id:1,role:'receptionist',hasSeat:true,state:'idle'},{id:2,hasSeat:true,state:'resting'},{id:3,child:true,state:'seated'}]){const a=new CharacterAnimator().update({...p,x:0,y:0},0);near(a.sit,1);const pose=skeleton(a,p);near((pose.hip[2]-HIP_RADIUS)*characterScale(p),SEAT_HEIGHT);}
+ const a=new CharacterAnimator().update({id:4,x:0,y:0,hasSeat:false,state:'resting'},0);near(a.sit,0);
 });
