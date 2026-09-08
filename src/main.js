@@ -1,4 +1,5 @@
 import {patchHTML} from './dom.js';
+import {readPreferences} from './preferences.js';
 import {Announcer} from './voice.js';
 import {roomObjects,findObject,OBJECT_INFO} from './objects.js';
 import {CharacterModel,appearanceFor,portraitSeed} from './characters.js';
@@ -10,7 +11,7 @@ import {GUIDE,YEAR_SECONDS,ANNUAL_TARGET} from './tutorial.js';
 import {translator,detectLanguage} from './i18n.js';
 const $=s=>document.querySelector(s);
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let prefs={},progress=[];try{prefs=JSON.parse(localStorage.getItem('scrubssitel-prefs')||'{}');progress=JSON.parse(localStorage.getItem('scrubssitel-progress')||'[]');if(!Array.isArray(progress))progress=[];}catch{}
+let {prefs,progress}=readPreferences({getItem:key=>localStorage.getItem(key)});
 let lang=['en','de'].includes(prefs.lang)?prefs.lang:detectLanguage(),t=translator(lang),game=new Game(),startScreen=true,savedGame=null,savedSource=null,paused=false,speed=1,panel=null,selected=null,modal=null,buildType=null,winShown=false,overShown=false,confirmAction=null,lastSave=0,autosaveEnabled=false,audio=null,patientFilter='active',recruitRole='receptionist',buildOpen=false;
 const voice=new Announcer({onStatus(){if(renderer)renderUI();}});
 function readStoredClinic(){savedGame=null;savedSource=null;try{savedSource=localStorage.getItem('scrubssitel-save');if(savedSource)savedGame=Game.restore(JSON.parse(savedSource));}catch{}}

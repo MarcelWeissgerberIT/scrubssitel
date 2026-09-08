@@ -1,6 +1,6 @@
 {
   "name": "scrubssitel",
-  "version": "2.4.1",
+  "version": "2.4.2",
   "private": true,
   "type": "module",
   "description": "An original, bilingual hospital management comedy game.",
@@ -8,7 +8,7 @@
     "dev": "node scripts/serve.mjs",
     "build": "node scripts/build.mjs",
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check src/staff.js && node --check src/objects.js && node --check src/voice.js && node --check src/dom.js && node --check src/game.js && node --check src/renderer.js && node --check src/main.js && node --check src/animation.js && node --check src/characters.js && node --check src/sprites.js && node --check src/tutorial.js && node --check src/recruitment.js && npm test && npm run build"
+    "check": "node --check src/preferences.js && node --check src/staff.js && node --check src/objects.js && node --check src/voice.js && node --check src/dom.js && node --check src/game.js && node --check src/renderer.js && node --check src/main.js && node --check src/animation.js && node --check src/characters.js && node --check src/sprites.js && node --check src/tutorial.js && node --check src/recruitment.js && npm test && npm run build"
   },
   "engines": {
     "node": ">=20"
