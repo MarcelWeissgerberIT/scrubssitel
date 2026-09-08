@@ -173,3 +173,20 @@ button{transition:background .15s}.guide-highlight{box-shadow:none!important}.ga
 .guide-card .staff-pick svg{margin-right:5px}.staff-carry-hint{background:#fff6d9!important;border:1px solid #c4a365;color:#53613c;flex-wrap:wrap;z-index:6;line-height:1.4}
 .staff-carry-hint .small-button{padding:7px 10px;margin-left:auto}.staff-carry-hint b{white-space:nowrap}
 @media(max-width:700px){.staff-carry-hint{left:10px;right:10px;bottom:84px;font-size:11px}.staff-carry-hint .small-button{font-size:11px}.staff-placement-intro{font-size:11px}}
+
+/* Readable game controls at normal play size. */
+#game-menu .game-menu-orbit{width:clamp(48px,calc(var(--wheel-size)*.15),64px);height:clamp(50px,calc(var(--wheel-size)*.16),66px);border-radius:18px;grid-template-rows:1fr auto;gap:3px;padding:6px 3px}
+#game-menu .game-menu-category{width:clamp(44px,calc(var(--wheel-size)*.135),56px);height:clamp(46px,calc(var(--wheel-size)*.14),58px);border-radius:16px;padding:5px 2px}
+#game-menu .game-menu-caption{font-size:clamp(8px,calc(var(--wheel-size)*.024),10px);font-weight:700;line-height:1.1;white-space:nowrap;letter-spacing:-.15px;max-width:100%}
+#game-menu .game-menu-item svg{width:29px;height:29px;stroke-width:1.9}
+.game-menu-items[data-section=rooms] .game-menu-item{background:#fff3d9;color:#765125;border-color:#dec89f}
+.game-menu-items[data-section=staff] .game-menu-item{background:#eaf3fa;color:#335e7c;border-color:#b9d0df}
+.game-menu-items[data-section=patients] .game-menu-item{background:#fff0e8;color:#89533e;border-color:#e3c4b3}
+.game-menu-items[data-section=clinic] .game-menu-item{background:#edf4e8;color:#355d45;border-color:#c0d2b9}
+#game-menu .game-menu-item:hover,#game-menu .game-menu-item:focus-visible{background:#fffbed;border-color:#bd954c}
+.view-pan{display:flex;align-items:center;gap:4px;padding:6px 8px;border-radius:7px;font-weight:700;font-size:11px;min-height:32px;border-right:1px solid #d5e0ca;margin-right:4px}
+.view-controls .view-pan span{font-size:11px;width:auto;color:inherit}.view-pan svg{width:19px;height:19px}.view-pan.active{background:#315f50;color:#fff7d8}
+.pause-label{pointer-events:none}
+@media(max-width:480px){.view-pan{padding:5px}.view-controls{gap:0;right:10px}.view-controls .view-pan span{font-size:9px}#game-menu .game-menu-item svg{width:25px;height:25px}}
+/* In short landscape windows the open wheel uses the full screen height. */
+@media(max-height:500px){#game-menu.is-open{position:fixed;left:50%;top:50%;bottom:auto;max-width:none;transform:translate(-50%,-50%)}#game-menu.is-open .game-menu-wheel{--wheel-size:min(420px,92vw,calc(100dvh - 20px))}.menu-shield{position:fixed;background:#315f5030}}

@@ -166,7 +166,11 @@ export class Game {
   }
  }
 
- update(dt){if(this.over||this.event||dt<=0||!this.admissionsOpen)return;dt=Math.min(dt,.25);this.clock+=dt;
+ updateRenovations(){for(const r of this.rooms)if(r.renovating&&!furnishing.roomBusy(this,r))furnishing.beginRoomEdit(this,r.id);}
+ update(dt){if(this.over||this.event||dt<=0)return;dt=Math.min(dt,.25);
+  // During setup only placed employees and their doors move; opening starts the calendar.
+  if(!this.admissionsOpen){this.assignStaff();this.updateDoors(dt);updateStaff(this,dt,{preparing:true});this.updateRenovations();return;}
+  this.clock+=dt;
   this.calendar+=dt;
   const newDay=Math.floor((this.calendar+1e-7)/MONTH_SECONDS)+1;
   if(newDay>this.day){this.day=newDay;let cost=this.dailyCost();this.cash-=cost;this.expenses+=cost;for(const contract of this.contracts){if(contract.months>0){this.cash-=2250;this.financing-=1500;this.expenses+=750;cost+=2250;contract.months--;}}this.contracts=this.contracts.filter(c=>c.months>0);this.ledger.unshift({day:this.month,year:this.year,cost});this.ledger=this.ledger.slice(0,24);this.log('paid',String(cost));if((newDay-1)%12===0)this.closeYear();this.month=(newDay-1)%12+1;}
@@ -195,7 +199,7 @@ export class Game {
   for(const p of this.patients)if(p.state==='exit'&&!p.path.length){const record=this.record(p.id);if(record){record.dischargedAt=this.clock;this.recordEvent(p,'discharged');}}
   this.patients=this.patients.filter(p=>!(p.state==='exit'&&!p.path.length));
   if(this.project){const lab=this.rooms.find(r=>r.type==='lab'&&this.staffReady(this.staff.find(s=>s.id===r.staffId)));if(lab){this.project.progress+=dt*(this.staff.find(s=>s.id===lab.staffId)?.skill||1)*(1+(lab.level-1)*.3);const project=PROJECTS.find(p=>p.id===this.project.id);if(this.project.progress>=project.time){this.completed.push(project.id);this.project=null;this.log('researchDone',project.id);}}}
-  for(const r of this.rooms)if(r.renovating&&!furnishing.roomBusy(this,r))furnishing.beginRoomEdit(this,r.id);
+  this.updateRenovations();
   this.arrivalTimer-=dt;if(this.arrivalTimer<=0){this.spawnPatient();this.arrivalTimer=(this.mode==='tutorial'?8:this.mode==='sandbox'?8:LEVELS[this.level-1].arrival)*(.85+this.random()*.3);}
   if(this.clock>=this.nextEvent&&(this.mode!=='tutorial'||guideIndex(this)>=GUIDE.length-1)){const options=EVENTS.filter(e=>(!e.minLevel||this.mode==='sandbox'||this.level>=e.minLevel)&&!(e.id==='mafia'&&this.contracts.length));this.event=options[Math.floor(this.random()*options.length)].id;this.nextEvent=this.clock+95+this.random()*30;}
   if(this.mode==='campaign'&&!this.won){const target=LEVELS[this.level-1];if(this.storyGoalsMet()){this.won=true;this.log('completed');}}

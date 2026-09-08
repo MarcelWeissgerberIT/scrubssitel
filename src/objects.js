@@ -34,7 +34,12 @@ Object.assign(OBJECT_INFO,{
  'newspaper-rack':[['Yesterday’s headlines','Zeitungsständer'],['Yesterday’s news is today’s distraction. In a waiting area, seated patients lose 5% less patience. One bonus per type; amenities combine up to 15%.','Nachrichten von gestern lenken heute noch ab. In einem Wartebereich verlieren sitzende Patienten 5 % weniger Geduld. Ein Bonus je Typ; Extras zusammen höchstens 15 %.']],
  'water-dispenser':[['Water cooler','Wasserspender'],['Water and the latest clinic gossip. In a waiting area, seated patients lose 5% less patience. One bonus per type; amenities combine up to 15%.','Wasser und der neueste Praxis-Tratsch. In einem Wartebereich verlieren sitzende Patienten 5 % weniger Geduld. Ein Bonus je Typ; Extras zusammen höchstens 15 %.']],
  'coat-rack':[['Coat stand','Garderobenständer'],['A decorative home for coats, scarves and one suspicious umbrella. The umbrella is not a doctor.','Ein dekorativer Platz für Jacken, Schals und einen verdächtigen Schirm. Der Schirm ist kein Arzt.']],
- sanitizer:[['Hand sanitizer stand','Desinfektionsspender'],['A decorative reminder for clean hands. Your janitor still takes care of clinic cleanliness.','Ein dekorativer Hinweis auf saubere Hände. Für die Sauberkeit der Klinik ist weiterhin die Haustechnik zuständig.']]
+ sanitizer:[['Hand sanitizer stand','Desinfektionsspender'],['A decorative reminder for clean hands. Your janitor still takes care of clinic cleanliness.','Ein dekorativer Hinweis auf saubere Hände. Für die Sauberkeit der Klinik ist weiterhin die Haustechnik zuständig.']],
+ 'privacy-screen':[['Fabric privacy screen','Stoff-Trennwand'],['Three fabric panels for a little privacy. Staff and patients walk around the screen; keep doors and workstations accessible.','Drei Stoffpaneele für etwas Privatsphäre. Personal und Patienten gehen um die Trennwand herum; Türen und Arbeitsplätze müssen erreichbar bleiben.']],
+ 'glass-partition':[['Frosted glass divider','Glas-Trennwand'],['A freestanding frosted glass divider. Separates floor space without becoming a new room; leave a clear route around it.','Eine freistehende Trennwand aus Milchglas. Teilt die Fläche, ohne einen neuen Raum zu bilden; lass einen freien Weg darum herum.']],
+ 'treatment-trolley':[['Treatment trolley','Behandlungswagen'],['Cotton, bottles and a very orderly tray. Additional room furniture; the staffed treatment station is still required.','Watte, Fläschchen und ein auffällig ordentliches Tablett. Zusätzliche Raumausstattung; der besetzte Behandlungsplatz bleibt erforderlich.']],
+ 'waste-bin':[['Pedal bin','Tretmülleimer'],['A small pedal bin with an optimistic expression. Decorative; clinic cleanliness still depends on your janitor.','Ein kleiner Tretmülleimer mit optimistischem Gesicht. Dekoration; die Sauberkeit der Klinik bleibt Aufgabe der Haustechnik.']],
+ 'examination-couch':[['Examination couch','Untersuchungsliege'],['A cushioned examination couch with a fresh paper roll. Additional furniture, not a replacement for the room’s treatment station.','Eine gepolsterte Untersuchungsliege mit frischer Papierrolle. Zusätzliche Einrichtung, kein Ersatz für den Behandlungsplatz des Raums.']]
 });
 
 // Positions in furniture records are local physical floor coordinates. Actors
@@ -69,7 +74,12 @@ Object.assign(FURNITURE,{
  'newspaper-rack':{rooms:['waiting','reception','lounge'],w:.5,h:.5,z:.8,cost:95,comfort:.05,solids:solid(.5,.5),ports:[{kind:'use',x:.25,y:.75,lookYaw:Math.PI}]},
  'water-dispenser':{rooms:ALL,w:.5,h:.5,z:1.1,cost:160,comfort:.05,solids:solid(.5,.5),ports:[{kind:'use',x:.25,y:.75,lookYaw:Math.PI}]},
  'coat-rack':{rooms:ALL,w:.5,h:.5,z:1.2,cost:75,solids:solid(.5,.5),ports:[]},
- sanitizer:{rooms:ALL,w:.25,h:.25,z:1,cost:60,solids:solid(.25,.25),ports:[]}
+ sanitizer:{rooms:ALL,w:.25,h:.25,z:1,cost:60,solids:solid(.25,.25),ports:[]},
+ 'privacy-screen':{rooms:ALL,w:1.5,h:.25,z:1.15,cost:140,solids:solid(1.5,.25),ports:[]},
+ 'glass-partition':{rooms:ALL,w:1.5,h:.25,z:1.15,cost:200,solids:solid(1.5,.25),ports:[]},
+ 'treatment-trolley':{rooms:['gp','pharmacy','therapy','surgery','lab'],w:.75,h:.5,z:.92,cost:220,solids:solid(.75,.5),ports:[{kind:'use',x:.375,y:.75,lookYaw:Math.PI}]},
+ 'waste-bin':{rooms:ALL,w:.5,h:.5,z:.62,cost:55,solids:solid(.5,.5),ports:[{kind:'use',x:.25,y:.75,lookYaw:Math.PI}]},
+ 'examination-couch':{rooms:['gp','therapy','surgery'],w:1.75,h:.75,z:.74,cost:320,solids:solid(1.75,.75),ports:[{kind:'use',x:.875,y:1,lookYaw:Math.PI}]}
 });
 export function satisfiesRequirement(kind,required){return kind===required||!!FURNITURE[kind]?.fulfills?.includes(required);}
 export function waitingComfort(room){if(room?.type!=='waiting')return 1;const kinds=new Set((room.furniture||[]).map(item=>item.kind));return 1-Math.min(.15,[...kinds].reduce((sum,kind)=>sum+(FURNITURE[kind]?.comfort||0),0));}

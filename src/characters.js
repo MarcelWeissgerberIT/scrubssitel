@@ -70,15 +70,17 @@ const colorHex=(hex,n)=>{
 };
 const pointOrder=(a,b)=>a.x-b.x||a.y-b.y;
 const CIRCLES=[10,20].map(count=>Array.from({length:count},(_,i)=>[Math.cos(i*Math.PI*2/count),Math.sin(i*Math.PI*2/count)]));
+const HEAD_WIDTH=1.08,HEAD_DEPTH=1.32;
 export class CharacterModel{
  constructor(ctx){this.ctx=ctx;}
  draw(person,a,origin,tileWidth,part='all'){
   const c=this.ctx,u=tileWidth*characterScale(person),look=appearanceFor(person).look,pose=skeleton(a,person),commands=[],co=Math.cos(a.yaw),si=Math.sin(a.yaw);
   const bounds={left:Infinity,top:Infinity,right:-Infinity,bottom:-Infinity};
+  let headSpace=null;
   const include=(x,y,rx=0,ry=rx)=>{bounds.left=Math.min(bounds.left,x-rx-1);bounds.right=Math.max(bounds.right,x+rx+1);bounds.top=Math.min(bounds.top,y-ry-1);bounds.bottom=Math.max(bounds.bottom,y+ry+1);};
-  const project=v=>{const x=v[0]*co+v[1]*si,y=-v[0]*si+v[1]*co;return {x:origin.x+(x-y)*u*.5,y:origin.y+(x+y)*u*.255-v[2]*u,depth:(x+y)*.66+v[2]*.34};};
+  const project=v=>{const xx=headSpace?headSpace[0]+(v[0]-headSpace[0])*HEAD_WIDTH:v[0],yy=headSpace?headSpace[1]+(v[1]-headSpace[1])*HEAD_DEPTH:v[1],x=xx*co+yy*si,y=-xx*si+yy*co;return {x:origin.x+(x-y)*u*.5,y:origin.y+(x+y)*u*.255-v[2]*u,depth:(x+y)*.66+v[2]*.34};};
   const sphere=(point,rx,ry,rz,fill,detail=0,matte=1)=>{
-   const p=project(point),width=Math.sqrt((rx*(co+si))**2+(ry*(si-co))**2)*u*.5,height=Math.sqrt((rx*(co-si)*.255)**2+(ry*(si+co)*.255)**2+rz*rz)*u;
+   const p=project(point),xx=rx*(headSpace?HEAD_WIDTH:1),yy=ry*(headSpace?HEAD_DEPTH:1),width=Math.sqrt((xx*(co+si))**2+(yy*(si-co))**2)*u*.5,height=Math.sqrt((xx*(co-si)*.255)**2+(yy*(si+co)*.255)**2+rz*rz)*u;
    include(p.x,p.y,width,height);
    commands.push({depth:p.depth+detail,draw:()=>{const gradient=c.createRadialGradient(p.x-width*.32,p.y-height*.43,0,p.x,p.y,Math.max(width,height)*1.12);gradient.addColorStop(0,color(fill,38*matte));gradient.addColorStop(.48,color(fill,7*matte));gradient.addColorStop(.82,fill);gradient.addColorStop(1,color(fill,-35*matte));c.fillStyle=gradient;c.beginPath();c.ellipse(p.x,p.y,width,height,0,0,Math.PI*2);c.fill();}});
   };
@@ -92,6 +94,7 @@ export class CharacterModel{
   // Single continuous silhouettes keep cloth and skin from reading as stacked
   // beads. The rig still supplies every foot, knee, elbow, hand and seat anchor.
   const silhouette=(points,fill,depth,matte=1,projected=false,lighting=null)=>{
+   const sculpted=!!headSpace;
    const pts=(projected?points:points.map(project)).sort(pointOrder);
    const half=reverse=>{const out=[];for(let i=reverse?pts.length-1:0;reverse?i>=0:i<pts.length;reverse?i--:i++){
     const p=pts[i];while(out.length>1){const a=out[out.length-2],b=out[out.length-1];if((b.x-a.x)*(p.y-a.y)-(b.y-a.y)*(p.x-a.x)>0)break;out.pop();}out.push(p);
@@ -101,7 +104,7 @@ export class CharacterModel{
    for(const p of hull){left=Math.min(left,p.x);right=Math.max(right,p.x);top=Math.min(top,p.y);bottom=Math.max(bottom,p.y);}
    include(left,top);include(right,bottom);
    commands.push({depth,draw:()=>{
-    const light=lighting||{left,right,top,bottom},w=light.right-light.left,h=light.bottom-light.top,g=c.createRadialGradient(light.left+w*.29,light.top+h*.46,0,light.left+w*.50,light.top+h*.48,Math.max(w,h)*.61);g.addColorStop(0,color(fill,45*matte));g.addColorStop(.42,color(fill,20*matte));g.addColorStop(.73,fill);g.addColorStop(1,color(fill,-36*matte));
+    const light=lighting||{left,right,top,bottom},w=light.right-light.left,h=light.bottom-light.top,g=c.createRadialGradient(light.left+w*.29,light.top+h*.46,0,light.left+w*.50,light.top+h*.48,Math.max(w,h)*(sculpted?.55:.61));g.addColorStop(0,color(fill,(sculpted?52:45)*matte));g.addColorStop(.42,color(fill,(sculpted?26:20)*matte));g.addColorStop(.73,color(fill,sculpted?-8*matte:0));g.addColorStop(1,color(fill,(sculpted?-54:-36)*matte));
     c.fillStyle=g;c.beginPath();const last=hull.at(-1),first=hull[0];c.moveTo((last.x+first.x)/2,(last.y+first.y)/2);
     hull.forEach((p,i)=>{const q=hull[(i+1)%hull.length];c.quadraticCurveTo(p.x,p.y,(p.x+q.x)/2,(p.y+q.y)/2);});c.closePath();c.fill();
    }});
@@ -110,7 +113,8 @@ export class CharacterModel{
   const volume=(center,rings,fill,detail=0)=>{
    const points=[],circle=CIRCLES[tileWidth<70?0:1];
    for(const [z,rx,ry,dy=0] of rings){const p=project([center[0],center[1]+dy,center[2]+z]);
-    for(const [cs,sn] of circle)points.push({x:p.x+(cs*rx*(co+si)+sn*ry*(si-co))*u*.5,y:p.y+(cs*rx*(co-si)+sn*ry*(si+co))*u*.255});
+    const xx=rx*(headSpace?HEAD_WIDTH:1),yy=ry*(headSpace?HEAD_DEPTH:1);
+    for(const [cs,sn] of circle)points.push({x:p.x+(cs*xx*(co+si)+sn*yy*(si-co))*u*.5,y:p.y+(cs*xx*(co-si)+sn*yy*(si+co))*u*.255});
    }
    silhouette(points,fill,project(center).depth+detail,1,true);
   };
@@ -166,6 +170,9 @@ export class CharacterModel{
   // Rounded skull and cheek profiles meet at a soft chin, without a flat jaw
   // ring. Facial features follow the same ellipsoidal surface and its tangent.
   const [hx,hy,hz]=[pose.head[0],pose.head[1],pose.head[2]+.07],headWidth=(look.headWidth||.235)*1.22;
+  // The model needs actual front-to-back skull depth at gameplay zoom. This
+  // common space keeps cheeks, eyes, ears, hair and shading on the same volume.
+  headSpace=[hx,hy];
   volume([hx,hy,hz],[[-.225,.012,.014,.024],[-.202,headWidth*.38,.095,.026],[-.158,headWidth*.72,.165,.019],[-.083,headWidth*.97,.215,.009],[.005,headWidth,.235],[.086,headWidth*.97,.221],[.160,headWidth*.75,.170],[.210,headWidth*.40,.086],[.230,.008,.008]],look.skin);
   const front=si+co,sideView=co-si,visibleFace=front>.02;
   for(const side of [-1,1]){
@@ -277,6 +284,7 @@ export class CharacterModel{
    volume([side*headWidth*.9,hy-.073,hz-.002],[[-.107,.014,.029],[-.05,.043,.088],[.030,.052,.102],[.102,.031,.078],[.128,.004,.008]],look.hair,.005);
    for(let i=0;i<3;i++)curve([[side*headWidth*.83,hy-.08+i*.026,hz+.105],[side*headWidth,hy-.07+i*.026,hz+.067],[side*headWidth,hy-.072+i*.026,hz-.024],[side*headWidth*.91,hy-.09+i*.026,hz-.075]],color(look.hair,16),.005,.022);
   }
+  headSpace=null;
   // Uniform details sit on the front surface, so they disappear from back views.
   if(visibleFace){
    const z=pose.chest[2],waist=pose.hip[2];

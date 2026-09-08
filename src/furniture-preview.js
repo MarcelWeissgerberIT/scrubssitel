@@ -31,7 +31,7 @@ export function drawFurniturePreview(canvas,kind,roomType,rotation=0){
   const game={rooms:[room],staff:[],patients:[],project:null,admissionsOpen:false};
   // sceneLayers obtains complete furniture parts through roomObjects, including
   // the counter's chair, monitor and bell, and orders them as in the real scene.
-  const layers=sceneLayers(game,[]).filter(layer=>layer.object.furnitureId==='preview');
+  const layers=sceneLayers(game,[]).filter(layer=>layer.kind==='object'&&layer.object.furnitureId==='preview');
   const probe=Object.assign(Object.create(Renderer.prototype),{
     ctx,game,tw:48,th:48*.51,ox:WIDTH/2,oy:HEIGHT*.68
   });

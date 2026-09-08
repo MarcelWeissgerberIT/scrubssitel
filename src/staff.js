@@ -65,16 +65,18 @@ export function dispatchStaff(g,s){if(s.awaitingPlacement)return;s.breakRoomId=n
 }
 export function requestBreak(g,id){const s=g.staff.find(s=>s.id===id);if(s&&!s.awaitingPlacement&&!s.resting){s.breakPending=true;return true;}return false;}
 export function repathStaff(g){for(const s of g.staff){const dest=s.destination;if(!dest)continue;const room=dest.roomId===null?null:g.room(dest.roomId);if(dest.roomId!==null&&!room){s.path=[];s.destination=null;s.breakRoomId=null;s.breakSeatIndex=null;s.state='idle';s.resting=false;continue;}if(!s.path.length)continue;if(!room&&(g.occupied(dest.x,dest.y)||corridorRoute(g,s,dest)===null)){if(s.state==='cleaning'||dest.arrival==='idle')dispatchStaff(g,s);else walk(g,s,standingSpot(g,s,g.room(s.roomId)),null,'travelBreak','break');}else walk(g,s,dest,room,s.state,dest.arrival);}}
-export function updateStaff(g,dt){
+export function updateStaff(g,dt,{preparing=false}={}){
  for(const s of g.staff){const r=g.room(s.roomId),occupied=!!r?.patientId;
   if(s.awaitingPlacement)continue;
-  if(!s.resting&&(s.fatigue>=86||g.clock>=s.nextBreakAt))s.breakPending=true;
+  if(!preparing&&!s.resting&&(s.fatigue>=86||g.clock>=s.nextBreakAt))s.breakPending=true;
   // A booked appointment, including the patient's exit, finishes before a break.
-  if(s.breakPending&&!s.resting&&!occupied){startBreak(g,s);}
-  if(s.state==='idle'&&!s.resting&&!s.breakPending)dispatchStaff(g,s);
+  if(preparing&&s.breakPending&&!s.resting&&!occupied&&r?.renovating){s.breakPending=false;walk(g,s,standingSpot(g,s,r),null,'travelWork','idle');}
+  if(!preparing&&s.breakPending&&!s.resting&&!occupied){startBreak(g,s);}
+  if(s.state==='idle'&&!s.resting&&(!s.breakPending||preparing))dispatchStaff(g,s);
   if(['travelWork','travelBreak'].includes(s.state)&&(!s.path.length||!s.destination))throw Error('Missing staff route');
  if(s.state==='work'&&(!r||!g.roomReady(r)&&!r.patientId)&&!s.breakPending)dispatchStaff(g,s);
   if(s.path.length){g.move(s,dt,2.8);if(!s.path.length){s.state=s.destination?.arrival||'idle';if(s.state==='work')s.resting=false;if(s.state==='idle'&&s.manualPlacement&&!s.roomId&&s.role!=='janitor'){s.awaitingPlacement=true;s.destination=null;s.breakPending=false;}}}
+  if(preparing){if(s.state==='cleaning'&&!s.path.length)dispatchStaff(g,s);continue;}
   if(s.state==='break'){
    s.breakElapsed+=dt;const room=g.room(s.breakRoomId),seated=room?.type==='lounge'&&s.breakSeatIndex!==null;
    s.fatigue=clamp(s.fatigue-dt*(seated?2.3*(1+(room.level-1)*.3):.65),0,100);
