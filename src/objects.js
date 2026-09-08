@@ -1,0 +1,36 @@
+// One registry drives furniture, seat reservations, hit targets and explanations.
+export const OBJECT_INFO={
+ door:[['Quiet please door','Bitte-leise-Tür'],['Opens automatically for arrivals, called patients and staff. Holding it open never changes the waiting order.','Öffnet für Ankommende, aufgerufene Patienten und Personal. Offenhalten ändert niemals die Warteliste.']],
+ chair:[['Cloud cushion chair','Wolkenpolster-Stuhl'],['One reserved seat. Sitting slows patience loss. The cushion has heard everything.','Ein reservierbarer Sitzplatz. Sitzen senkt den Geduldsverlust. Das Kissen hat schon alles gehört.']],
+ sofa:[['The patience sofa','Geduldssofa'],['Cushioned seats, no wrestling over the remote. In waiting rooms they reduce patience loss; the staff room helps staff recover.','Polsterplätze, kein Streit um die Fernbedienung. Im Wartebereich senken sie den Geduldsverlust; im Personalraum erholen sich Mitarbeiter.']],
+ toys:[['Tiny trouble corner','Mini-Chaos-Ecke'],['Blocks, a toy duck and a picture book. Children seated in this waiting room lose 35% less patience. No batteries. Miracles happen.','Bauklötze, Spielente und Bilderbuch. Sitzende Kinder verlieren hier 35 % weniger Geduld. Ohne Batterien. Es gibt Wunder.']],
+ books:[['Very old news','Nachrichten von vorgestern'],['A little reading table. The magazines are decorative; nobody has solved the crossword since 1998.','Ein Lesetisch. Die Hefte sind Dekoration; das Kreuzworträtsel ist seit 1998 ungelöst.']],
+ plant:[['Dr. Leaf','Dr. Blatt'],['Decorative greenery. Excellent listener, still no medical license.','Dekoratives Grün. Hervorragender Zuhörer, weiterhin ohne Approbation.']],
+ counter:[['Check-in counter','Anmeldetheke'],['A receptionist registers each arrival and creates their place in the diagnosis queue. Registration is free.','Die Rezeption meldet Patienten an und legt ihre Reihenfolge zur Diagnose fest. Die Anmeldung ist kostenlos.']],
+ monitor:[['Queue commander','Wartelisten-Wächter'],['The registration list. Doctors call the oldest waiting appointment as soon as a room and its clinician are ready.','Die Anmeldeliste. Sobald Raum und Behandler frei sind, wird der älteste wartende Termin aufgerufen.']],
+ bell:[['Ding, not a diagnosis','Ding ist keine Diagnose'],['The reception bell. Please ring with your finger, not your entire personality. Decorative; hiring reception staff makes registration work.','Die Empfangsglocke. Bitte mit dem Finger klingeln, nicht mit der gesamten Persönlichkeit. Dekoration; für die Anmeldung braucht es Personal.']],
+ stool:[['Spin doctor stool','Dreh-und-Angel-Stuhl'],['A seat for staff. Staff recover fatigue during breaks in the staff room.','Ein Personalsitz. Müdigkeit erholt sich in Pausen im Personalraum.']],
+ gp:[['Quack-o-scan','Quak-o-skop'],['The doctor diagnoses imaginary ailments here. A spinning duck is reassuringly scientific. Upgrading the room speeds up consultations.','Hier diagnostiziert der Arzt Fantasiekrankheiten. Eine rotierende Ente wirkt überzeugend wissenschaftlich. Raumausbau beschleunigt die Sprechstunde.']],
+ pharmacy:[['Decaf 3000','Entkoffeinator 3000'],['Nurses treat caffeine jitters and clipboard fever. Upgrade the room for faster treatment and a better cure chance.','Pflegekräfte behandeln Koffeinzittern und Klemmbrettfieber. Raumausbau verbessert Tempo und Heilungschance.']],
+ therapy:[['Dream steamer','Traumpuster'],['A doctor treats daydreams that escaped their owner. Room upgrades improve treatment.','Ein Arzt behandelt Tagträume, die ihrem Besitzer entwischt sind. Raumausbau verbessert die Behandlung.']],
+ surgery:[['Smile press','Grinsebügler'],['A surgeon irons out fictional beauty disasters. No real medical advice, just extremely confident machinery.','Eine Chirurgin bügelt erfundene Schönheitskatastrophen aus. Keine echte Medizin, nur sehr selbstbewusste Technik.']],
+ lab:[['Duck science station','Entenforschungsstation'],['Assign a doctor and fund a research project. Rubber duck peer review is surprisingly strict.','Arzt einstellen und Forschungsprojekt finanzieren. Die Gummienten-Begutachtung ist überraschend streng.']],
+ coffee:[['Staff fuel station','Personal-Tankstelle'],['The staff room speeds recovery during breaks. This decorative coffee machine takes morale very seriously.','Der Personalraum beschleunigt die Erholung in Pausen. Diese dekorative Kaffeemaschine nimmt die Stimmung sehr ernst.']],
+ toilet:[['Porcelain throne','Porzellanthron'],['A restroom reduces patience loss throughout the clinic. Please do not schedule a board meeting here.','Toiletten senken den Geduldsverlust in der Klinik. Bitte keine Vorstandssitzung hier abhalten.']],
+ sink:[['Bubble basin','Blubberbecken'],['Decorative handwashing station. The soap has a better attendance record than most executives.','Dekorativer Waschplatz. Die Seife hat eine bessere Anwesenheitsquote als die meisten Vorstände.']],
+ cabinet:[['Extremely organized cupboard','Höchst organisierter Schrank'],['Decorative storage for supplies. The drawer marked miscellaneous contains everything.','Dekorativer Vorratsschrank. In der Schublade Sonstiges liegt alles.']]
+};
+export function waitingSeats(r){if(r.type!=='waiting')return [];const out=[],lane=r.x+Math.floor(r.w/2);for(let row=0;row<(r.h>=5?2:1);row++){for(let x=r.x+.3;x<lane-.7;x+=1.05)out.push({x,y:r.y+.45+row*1.8,kind:'chair'});const right=[];for(let x=lane+.85;x<=r.x+r.w-1;x+=.85)right.push(x);for(const x of right.slice(0,2))out.push({x,y:r.y+.45+row*1.8,kind:right.length>=2?'sofa':'chair'});}return out;}
+export function roomObjects(r){const out=[],add=(kind,key,x,y,w=.7,h=.6,z=.8,extra={})=>out.push({id:`${r.id}:${key}`,roomId:r.id,kind,x,y,w,h,z,...extra});const x=r.x,y=r.y,w=r.w,h=r.h;
+ add('door','door',x+Math.floor(w/2),y<8?y+h-.06:y-.06,1,.12,1.12);
+ if(r.type==='waiting'){
+  const seats=waitingSeats(r);seats.forEach((s,i)=>{if(s.kind==='sofa'&&seats[i-1]?.kind==='sofa'&&seats[i-1].y===s.y)return;const count=s.kind==='sofa'?seats.filter(v=>v.kind==='sofa'&&v.y===s.y).length:1;add(s.kind,`seat-${i}`,s.x+.12,s.y+.2,.76+(count-1)*.85,.7,.7,{seatIndex:i,seats:count});});
+  add('toys','toys',x+.25,y+h-1.0,1.15,.7,.45);add('books','books',x+w-1.15,y+h-.9,.7,.55,.4);add('plant','plant',x+w-.4,y+.2,.4,.4,.85);return out;
+ }
+ if(r.type==='reception'){add('stool','stool',x+w*.5-.25,y+.38,.5,.5,.32);add('counter','counter',x+.5,y+1,w-1,.8,.56);add('monitor','monitor',x+w/2,y+1.2,.5,.2,.91);add('bell','bell',x+.75,y+1.25,.4,.4,.72);add('cabinet','cabinet',x+.25,y+.2,.65,.5,.65);}
+ else if(['gp','pharmacy','therapy','surgery','lab'].includes(r.type)){add(r.type,'machine',x+.25,y+.45,1.65,1.9,1.7);add('cabinet','cabinet',x+w-1,y+.2,.65,.55,.85);add('sink','sink',x+.22,y+h-1,.65,.55,.55);}
+ else if(r.type==='lounge'){add('sofa','sofa',x+.4,y+.4,w-1,.8,.7,{seats:Math.floor((w-1)/.8)});add('books','table',x+1.3,y+2,1.2,.7,.35);add('coffee','coffee',x+w-1,y+h-1.1,.7,.6,1.1);}
+ else if(r.type==='toilet'){for(let i=0;i<Math.max(1,Math.floor(w/1.3));i++)add('toilet',`wc-${i}`,x+.3+i*1.25,y+.3,.8,1,.75);add('sink','sink',x+.5,y+h-.8,w-1,.5,.55);}
+ if(r.type!=='toilet')add('plant','plant',x+w-.45,y+h-.5,.4,.4,.85);return out;
+}
+export function findObject(game,id){for(const r of game.rooms){const object=roomObjects(r).find(o=>o.id===id);if(object)return object;}return null;}

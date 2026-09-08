@@ -27,5 +27,5 @@ test('applicant choices are consumed once, carry different contracts, and advert
 });
 test('v2 saves keep their clinic and acquire the applicant market without resetting finances',()=>{
  const g=setup();tick(g,60);const old=g.snapshot();old.version=2;delete old.applicantIds;delete old.recruitmentRound;for(const s of old.staff){delete s.applicantId;delete s.personality;delete s.fatigueRate;}for(const p of old.patients){p.seatRoom=null;p.seatIndex=null;if(['seatTravel','seated'].includes(p.state)){p.state='waiting';p.targetRoom=null;p.path=[];}}
- const restored=Game.restore(old);assert.equal(restored.cash,old.cash);assert.deepEqual(restored.records,old.records);assert.equal(restored.clock,old.clock);assert.equal(restored.version,3);assert.ok(restored.applicants('nurse').length>0);tick(restored,100);assert.ok(restored.cured>=g.cured);
+ const restored=Game.restore(old);assert.equal(restored.cash,old.cash);assert.deepEqual(restored.records,old.records);assert.equal(restored.clock,old.clock);assert.equal(restored.version,4);assert.ok(restored.applicants('nurse').length>0);tick(restored,100);assert.ok(restored.cured>=g.cured);
 });

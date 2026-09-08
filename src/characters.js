@@ -8,6 +8,9 @@ export const LOOKS={
  nia:{skin:'#815139',hair:'#272322',shirt:'#9b739e',pants:'#795a89',shoes:'#e9e4db',style:'bun',medical:true},
  park:{skin:'#ddb48b',hair:'#242626',shirt:'#f1efe5',sleeve:'#f5f3ec',pants:'#537e7b',shoes:'#f0ece3',style:'sweep',medical:true},
  otto:{skin:'#daab7e',hair:'#bcbab0',shirt:'#d7a447',pants:'#bb8532',shoes:'#6b6556',style:'tuft',moustache:true},
+ 'child-0':{skin:'#e4b18a',hair:'#885334',shirt:'#e6ad4d',pants:'#68a6b1',shoes:'#f3ecd7',style:'ponytail'},
+ 'child-1':{skin:'#9d6849',hair:'#34271f',shirt:'#8cba8d',pants:'#608ca7',shoes:'#f4d787',style:'curls'},
+ 'child-2':{skin:'#edbc94',hair:'#a7643f',shirt:'#a98abb',pants:'#d38d77',shoes:'#f2e9d6',style:'bob'},
  'patient-0':{skin:'#e4b18a',hair:'#805036',shirt:'#d9675d',sleeve:'#e0786a',pants:'#68726e',shoes:'#eee6ce',style:'ponytail'},
  'patient-1':{skin:'#e0ae87',hair:'#896344',shirt:'#9462a4',pants:'#be9145',shoes:'#736149',style:'bald',stout:true},
  'patient-2':{skin:'#a57452',hair:'#c9c5bd',shirt:'#5faea7',pants:'#4b8d87',shoes:'#ece9d8',style:'bob',glasses:true}
@@ -16,8 +19,8 @@ const color=(hex,n=0)=>{const i=parseInt(hex.slice(1),16);return `rgb(${[i>>16,(
 export class CharacterModel{
  constructor(ctx){this.ctx=ctx;}
  draw(person,a,origin,tileWidth){
-  const c=this.ctx,u=tileWidth*CHARACTER_SCALE,look=LOOKS[person.castId||`patient-${person.variant||0}`]||LOOKS.milo,pose=skeleton(a,person),commands=[],co=Math.cos(a.yaw),si=Math.sin(a.yaw);
-  const project=v=>{const x=v[0]*co+v[1]*si,y=-v[0]*si+v[1]*co;return {x:origin.x+(x-y)*u*.5,y:origin.y+(x+y)*u*.255-v[2]*u,depth:(x+y)*.66+v[2]*.34};};
+  const c=this.ctx,u=tileWidth*CHARACTER_SCALE*(person.child?.73:1),look=LOOKS[person.castId||`${person.child?'child':'patient'}-${person.variant||0}`]||LOOKS.milo,pose=skeleton(a,person),commands=[],co=Math.cos(a.yaw),si=Math.sin(a.yaw);
+  const project=v=>{v=[v[0],v[1],v[2]+(person.child?a.sit*.13:0)];const x=v[0]*co+v[1]*si,y=-v[0]*si+v[1]*co;return {x:origin.x+(x-y)*u*.5,y:origin.y+(x+y)*u*.255-v[2]*u,depth:(x+y)*.66+v[2]*.34};};
   const sphere=(point,rx,ry,rz,fill,detail=0)=>{
    const p=project(point),width=Math.sqrt((rx*(co+si))**2+(ry*(si-co))**2)*u*.5,height=Math.sqrt((rx*(co-si)*.255)**2+(ry*(si+co)*.255)**2+rz*rz)*u;
    commands.push({depth:p.depth+detail,draw:()=>{const gradient=c.createRadialGradient(p.x-width*.32,p.y-height*.43,0,p.x,p.y,Math.max(width,height)*1.12);gradient.addColorStop(0,color(fill,28));gradient.addColorStop(.57,fill);gradient.addColorStop(1,color(fill,-29));c.fillStyle=gradient;c.beginPath();c.ellipse(p.x,p.y,width,height,0,0,Math.PI*2);c.fill();}});
@@ -73,7 +76,7 @@ export class CharacterModel{
   if(person.role==='janitor'&&a.sit<.1){const hand=pose.arms[1].hand,end=[.11,.55+Math.sin(a.time*3)*a.work*.08,.025];bone(hand,end,.019,'#b6976a');sphere(end,.18,.09,.025,'#d3d0b6');}
   if(a.sit>.8&&person.role!=='receptionist'){
    // An open magazine is a separate prop held by both hands.
-   const z=pose.hip[2]+.03;line([[-.17,.31,z],[0,.34,z-.025],[.17,.31,z]],'#f9eed2',.052);line([[-.15,.315,z+.008],[-.03,.33,z-.01]],'#7bb5ad',.028);line([[.03,.33,z-.01],[.15,.315,z+.008]],'#dba588',.028);
+   const z=pose.hip[2]+.03;if(person.child){sphere([0,.32,z+.04],.11,.08,.10,'#e6be79');sphere([-.06,.32,z+.12],.04,.035,.04,'#cfa765');sphere([.06,.32,z+.12],.04,.035,.04,'#cfa765');}else line([[-.17,.31,z],[0,.34,z-.025],[.17,.31,z]],'#f9eed2',.052);line([[-.15,.315,z+.008],[-.03,.33,z-.01]],'#7bb5ad',.028);line([[.03,.33,z-.01],[.15,.315,z+.008]],'#dba588',.028);
   }
   commands.sort((a,b)=>a.depth-b.depth);for(const command of commands)command.draw();
   return {height:(pose.head[2]+(look.style==='bun'?.41:.29))*u,width:.56*u,head:project(pose.head)};

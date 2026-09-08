@@ -70,3 +70,8 @@ COMPLAINTS.ego={en:'“I smiled for one photograph. It has been three days.”',
 Object.assign(LEVELS[0],{name:{en:'A practice of your own',de:'Deine eigene Praxis'},desc:{en:'Bea has the keys. You have $50,000 and empty rooms. Open a staffed practice, cure 15 patients and earn 62 reputation.' ,de:'Bea hat die Schlüssel. Du hast 50.000 $ und leere Räume. Öffne eine besetzte Praxis, heile 15 Patienten und erreiche 62 Ruf.'}});
 Object.assign(LEVELS[1],{specialty:'therapy',specialtyGoal:12,project:'care',name:{en:'Head in the clouds',de:'Die Tagtraumpraxis'},desc:{en:'The city keeps missing its own meetings. Open a daydream practice: 32 cures, 12 therapy successes, bedside-manner research and 70 reputation.',de:'Die Stadt verpasst ihre eigenen Meetings. Eröffne eine Tagtraumpraxis: 32 Heilungen, davon 12 in der Therapie, erforschte Patientenbetreuung und 70 Ruf.'}});
 Object.assign(LEVELS[2],{specialty:'surgery',specialtyGoal:18,project:'speed',name:{en:'A perfectly imperfect practice',de:'Die Schönheitsklinik'},desc:{en:'A red-carpet event has caused a filteritis outbreak. Run a cosmetic practice: 50 cures, 18 glow-up treatments, paperwork research and 78 reputation.',de:'Ein Roter-Teppich-Event löst Filteritis aus. Leite eine Schönheitsklinik: 50 Heilungen, davon 18 Schönheitsbehandlungen, erforschter Papierkram und 78 Ruf.'}});
+
+PATIENT_FACTS.occupation.push({en:'School pupil',de:'Schulkind'},{en:'Kindergarten explorer',de:'Kindergarten-Entdecker'});
+
+// Short consultations offset the real waiting-room journeys and door transitions.
+ROOMS.gp.time=5;ROOMS.pharmacy.time=6;
