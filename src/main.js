@@ -115,8 +115,8 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden&&autosaveEn
 shell();if(fresh)openModal('welcome');else{winShown=game.won;if(!prefs.tutorialV2Seen)openModal('update');}prefs.tutorialV2Seen=true;persistPrefs();
 let last=performance.now(),accumulator=0,lastUI=0,lastCured=game.cured,animationTime=0;
 function frame(now){const elapsed=Math.min((now-last)/1000,.25);last=now;
- if(!paused&&!modal&&!document.hidden&&!game.over){accumulator+=elapsed*speed;while(accumulator>=.05){game.update(.05);accumulator-=.05;if(game.event||game.over)break;}}
- if(!paused&&!modal&&!document.hidden)animationTime+=elapsed*speed;renderer.draw(game,animationTime);
+ if(!paused&&!modal&&!document.hidden&&!game.over){accumulator+=elapsed*speed;while(accumulator>=.05){renderer.captureStep(game);game.update(.05);accumulator-=.05;if(game.event||game.over)break;}}
+ if(!paused&&!modal&&!document.hidden)animationTime+=elapsed*speed;renderer.draw(game,animationTime,Math.min(1,accumulator/.05));
  if(game.cured>lastCured){chime('cure');lastCured=game.cured;}
  if(game.event&&!modal)openModal('event');
  if(game.won&&!winShown&&!modal){winShown=true;const key=game.mode==='tutorial'?'tutorial':game.level;if(!progress.includes(key))progress.push(key);if(autosaveEnabled)save(false);openModal(game.mode==='tutorial'?'tutorial-win':'win');}

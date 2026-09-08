@@ -89,7 +89,7 @@ export class Game {
  need(p){return p.stage==='reception'?'reception':p.stage==='diagnosis'?'gp':ILLNESSES.find(i=>i.id===p.illness).room;}
  queue(r){return this.patients.filter(p=>p.targetRoom===r.id&&['waiting','travel','queue','seatTravel','seated','relocating'].includes(p.state)).length;}
  contains(r,p){return p.x>=r.x&&p.x<r.x+r.w&&p.y>=r.y&&p.y<r.y+r.h;}
- servicePoint(r){return {x:r.x+r.w*.66-.5,y:r.y+r.h*.65-.5};}
+ servicePoint(r){return r.type==='reception'?{x:r.x+r.w*.5-.5,y:r.y+2}:{x:r.x+r.w*.66-.5,y:r.y+r.h*.65-.5};}
  enterPath(r,to){const door=this.door(r);return [{x:door.x,y:r.y<8?r.y+r.h-1:r.y},{x:door.x,y:to.y},to];}
  exitPath(r,p){const door=this.door(r);return [{x:door.x,y:p.y},{x:door.x,y:r.y<8?r.y+r.h-1:r.y},door];}
  corridorPath(p,to){const inside=this.rooms.find(r=>this.contains(r,p));if(!inside)return this.path(p,to);return [...this.exitPath(inside,p),...(this.path(this.door(inside),to)||[])];}

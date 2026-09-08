@@ -1,6 +1,6 @@
 # Scrubssitel
 
-A cute, original hospital and specialty-practice management comedy game, with OpenArt characters animated directly on the playable floor.
+A cute, original hospital and specialty-practice management comedy game, with a fully articulated cast based on the original OpenArt character designs.
 
 **Play:** https://marcelweissgerberit.github.io/scrubssitel/
 
@@ -22,7 +22,9 @@ Every new patient must complete **staffed reception → diagnosis → the correc
 
 Every admitted person receives a permanent individual chart with a unique patient number, name, birth date, age, occupation, insurance, allergies, priority, complaint, diagnosis, admission/discharge details, itemized charges and a timestamped care timeline with staff and department names. Diagnosis stays hidden until it is completed. The patient directory includes active and discharged people, and records remain available after characters leave the floor and after reloading the game. Imported legacy patients have explicitly marked legacy records because earlier versions did not record their past care history.
 
-The six original staff archetypes and three patient appearances use processed OpenArt sprites with independently pivoted legs, seated poses, directional facing, breathing, working motion and work/rest reactions. Staff walk between assigned departments and their breaks. Click a character or use the patient directory to inspect it.
+The six staff archetypes and three patient appearances now use complete articulated models with visible front, back and side surfaces, rotating continuously through every heading. Knees, elbows, hands and feet move through a complete walk cycle; foot contact follows distance traveled. Standing, sitting down, seated reading, standing up, reception typing, treatment, cleaning and celebration have distinct poses and blended transitions. Figures are smaller relative to doors and furniture.
+
+The simulation still advances in fixed 50 ms steps, while patient positions interpolate between those steps at the display frame rate. Staff use the same doorway and interior paths, with no elapsed-time cap that loses movement at lower frame rates. Facing persists when someone stops. Break seats stay reserved until the employee leaves, and staff without a seat rest standing up. Click a character or use the patient directory to inspect it.
 
 ## Waiting rooms and recruitment
 
@@ -60,7 +62,7 @@ English/German follow the browser automatically, with a persistent manual overri
 
 ## Art
 
-The original ensemble and both new full-body sprite sheets were generated through the owner's signed-in **OpenArt** account using GPT Image 2. See [`PROVENANCE.md`](public/assets/PROVENANCE.md) and [`PROVENANCE-V2.md`](public/assets/PROVENANCE-V2.md) for prompts, layout and processing details. The procedural room geometry and comedy machines are interactive Canvas game scenery. Version 2.1 rigs the existing OpenArt artwork; it adds no newly generated raster assets. Fonts ship with their SIL Open Font Licenses.
+The original ensemble and both new full-body sprite sheets were generated through the owner's signed-in **OpenArt** account using GPT Image 2. See [`PROVENANCE.md`](public/assets/PROVENANCE.md) and [`PROVENANCE-V2.md`](public/assets/PROVENANCE-V2.md) for prompts, layout and processing details. The procedural room geometry and comedy machines are interactive Canvas game scenery. Version 2.2 replaces the old sliced bitmap gait with procedurally shaded, articulated character geometry. OpenArt portraits and concept sheets remain the cast reference and directory artwork. This release does not claim new OpenArt turnaround sheets: generation was blocked by concurrent Chrome activity. Fonts ship with their SIL Open Font Licenses.
 
 The cast, setting, dialogue and illnesses are original. This game is not affiliated with an existing television series or hospital game and contains no copied series audio, scripts or game assets.
 
@@ -77,4 +79,4 @@ npm run build
 
 Serve `dist/` with any static HTTP server. The GitHub Actions workflow validates and publishes pushes to `main` using GitHub Pages. Asset paths support the `/scrubssitel/` project path.
 
-Automated tests cover empty starts, guide progression, staffed reception, persistent patient charts, real year-end accounting, loan principal/interest, modifiers, all tutorial seeds and story goals, real seat reservations, overflow, continuous movement, applicant contracts, access constraints, deterministic saves, imported-state validation, legacy migration and bilingual completeness. A separate DOM/native-Canvas smoke exercise covers the complete guide setup, personal charts/archive, language switching, annual accounts and free play with the actual OpenArt sprites.
+Automated tests cover empty starts, guide progression, staffed reception, persistent patient charts, real year-end accounting, loan principal/interest, modifiers, all tutorial seeds and story goals, real seat reservations, overflow, continuous movement, applicant contracts, access constraints, deterministic saves, imported-state validation, legacy migration and bilingual completeness. Animation tests cover planted feet, complete cycles, all headings, pose transitions, retained facing, equivalent travel at 10/30/60 FPS, doorway passage and stable break-seat reservations. A separate DOM/native-Canvas smoke exercise covers the complete guide setup, personal charts/archive, language switching, annual accounts and free play with the current live character renderer.
