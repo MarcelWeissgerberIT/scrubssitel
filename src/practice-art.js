@@ -1,7 +1,9 @@
 // Local furniture geometry only. The room-art adapter supplies scale and rotation.
+import {amenityActivity} from './amenities.js';
 export const PRACTICE_SIZES={
   'writing-desk':[1.5,.75],'round-table':[1,1],'medicine-rack':[.75,.5],
-  'gum-machine':[.5,.5],'newspaper-rack':[.5,.5],'water-dispenser':[.5,.5],
+  'gum-machine':[.5,.5],'snack-machine':[.75,.75],'drink-machine':[.75,.75],
+  'newspaper-rack':[.5,.5],'water-dispenser':[.5,.5],
   'coat-rack':[.5,.5],sanitizer:[.25,.25],
   'privacy-screen':[1.5,.25],'glass-partition':[1.5,.25],
   'treatment-trolley':[.75,.5],'waste-bin':[.5,.5],'examination-couch':[1.75,.75]
@@ -28,6 +30,83 @@ function cylinder(b,renderer,x,y,r,top,color,base){
     if((s.x-q.x)*orientation<-.00001)renderer.poly([q,s,b.project(...right,top),b.project(...left,top)],shade((s.y-q.y)*orientation>0?-25:-12));
   }
   renderer.poly(points.map(point=>b.project(...point,top)),shade(10));
+}
+
+// A purchase's simulation progress is the only clock for vending movement.
+// Idle catalog renders and paused games therefore draw the same exact pixels.
+function vendingCabinet(b,o,activity){
+  const {x,y,w,h,kind}=o,{soft,wire,face,dot,project,c,u}=b,drink=kind==='drink-machine';
+  const active=!!activity?.active,progress=active?activity.progress:0;
+  const pulse=active?Math.sin(Math.PI*progress):0,turn=progress*Math.PI*6;
+  const body=drink?'#4e999b':'#cb8168',trim=drink?'#286a74':'#86504b',cream='#f0dfb4';
+  for(const xx of [x+.09,x+w-.17])for(const yy of [y+.08,y+h-.16])soft(xx,yy,.08,.08,.10,trim,.025,.02);
+  soft(x+.035,y+.035,w-.07,h-.07,1.34,body,.07,.095);
+  soft(x+.018,y+.018,w-.036,h-.036,1.38,cream,1.285,.08);
+  soft(x+.043,y+.043,w-.086,h-.086,.155,trim,.07,.065);
+  // Service doors and cooling vents follow the side plane rather than the screen.
+  const servicePanel=(right)=>{
+    const xx=right?x+w-.033:x+.14,yy=right?y+.14:y+.033,q=project(xx,yy,.28),axis=project(xx+(right?0:1),yy+(right?1:0),.28);
+    c.save();c.transform(axis.x-q.x,axis.y-q.y,0,-u,q.x,q.y);
+    c.fillStyle=trim;c.beginPath();c.roundRect(0,0,.46,.74,.025);c.fill();
+    c.fillStyle=body;c.beginPath();c.roundRect(.016,.018,.428,.704,.015);c.fill();
+    c.fillStyle=trim;for(let row=0;row<5;row++){c.beginPath();c.roundRect(.067,.075+row*.039,.29,.015,.007);c.fill();}
+    c.fillStyle=cream;c.beginPath();c.roundRect(.365,.44,.026,.09,.009);c.fill();
+    c.fillStyle=drink?'#90c6ba':'#e2a98b';c.beginPath();c.roundRect(.105,.38,.22,.22,.035);c.fill();
+    c.fillStyle=cream;c.beginPath();c.arc(.215,.49,.055,0,Math.PI*2);c.fill();c.restore();
+  };
+  if(project(x+1,y).y>project(x,y).y)servicePanel(true);
+  if(!b.frontFacing)servicePanel(false);
+  // Recessed display, generous metal surround, and a real dark collection bay.
+  face(x+.075,y+h-.027,.43,.45,.82,cream,.038);
+  face(x+.10,y+h-.023,.455,.40,.765,'#294c50',.025);
+  face(x+.54,y+h-.025,.445,.12,.71,trim,.025);
+  face(x+.11,y+h-.023,.19,.40,.18,cream,.034);
+  face(x+.137,y+h-.019,.215,.346,.128,'#314b49',.021);
+  if(!b.frontFacing)return;
+  // A restrained pennant strip gives the machines their little party outfit.
+  wire([[x+.10,y+h-.008,1.30],[x+.31,y+h-.008,1.285],[x+.50,y+h-.008,1.30]],trim,.009);
+  for(let i=0;i<5;i++)dot(x+.12+i*.088,y+h-.003,1.298-(i===2?.015:.005),.017,.022,['#dca64f','#8bb9a3','#d68a7f'][i%3]);
+  face(x+.555,y+h-.020,.985,.088,.105,active?'#e7cf76':'#a4c1a6',.012);
+  for(let i=0;i<3;i++){
+    dot(x+.599,y+h-.010,.89-i*.13,.023,.019,active&&i===1?'#f7dc86':'#ded4b3');
+    face(x+.565,y+h-.014,.495+i*.046,.064,.018,'#527670',.006);
+  }
+  wire([[x+.574,y+h-.007,1.045],[x+.626,y+h-.007,1.045]],'#547562',.014);
+  const fy=y+h-.015,colors=drink?['#e4b359','#8fc3bb','#d98c84']:['#deb36c','#a1c2a0','#d39195'];
+  for(let row=0;row<3;row++){
+    const z=.485+row*.246;
+    face(x+.103,fy,z,.394,.028,'#a4bcb0',.006);
+    for(let col=0;col<3;col++){
+      const xx=x+.125+col*.124,selected=active&&row===1&&col===1;
+      const shake=selected?Math.sin(turn)*.006*pulse:0;
+      if(drink){
+        face(xx+.014+shake,fy+.002,z+.045,.078,.16,colors[(row+col)%3],.022);
+        face(xx+.032+shake,fy+.003,z+.195,.042,.033,'#dddcbf',.008);
+        face(xx+.022+shake,fy+.006,z+.105,.062,.051,'#f0ead2',.005);
+        wire([[xx+.027+shake,fy+.008,z+.163],[xx+.027+shake,fy+.008,z+.181]],'#ffffff90',.010);
+      }else{
+        face(xx+shake,fy+.002,z+.045,.097,.151,colors[(row+col)%3],.016);
+        face(xx+.012+shake,fy+.004,z+.096,.073,.060,'#efe2bd',.007);
+        dot(xx+.049+shake,fy+.009,z+.122,.016,.016,trim);
+        for(const zz of [z+.05,z+.186])wire([[xx+.009+shake,fy+.008,zz],[xx+.087+shake,fy+.008,zz]],'#f3d39b',.008);
+        const coil=[];for(let i=0;i<=18;i++){const a=i*Math.PI/3+(selected?turn:0);coil.push([xx+.008+i*.0044,fy+.017,z+.068+Math.sin(a)*.018]);}wire(coil,'#d8dccc',.009);
+      }
+    }
+  }
+  // Glass stays transparent enough for products and their mechanism to read.
+  face(x+.101,fy+.021,.456,.398,.762,'#d5eddf14',.022);
+  wire([[x+.127,fy+.025,1.06],[x+.189,fy+.025,1.18]],'#effffb90',.017);
+  wire([[x+.437,fy+.025,.62],[x+.473,fy+.025,.69]],'#effffb55',.012);
+  if(active&&progress>.30&&progress<.92){
+    const drop=Math.min(1,Math.max(0,(progress-.30)/.43)),z=.79-drop*.555,xx=x+.25;
+    face(xx,fy+.030,z,.11,drink?.16:.13,colors[1],drink?.025:.012);
+    face(xx+.012,fy+.032,z+.049,.086,.048,'#f1e7c7',.006);
+    if(drink)face(xx+.034,fy+.032,z+.15,.043,.03,'#efe2be',.006);
+  }
+  // The pickup flap lifts within the cabinet footprint, without entering the use port.
+  const opening=active?Math.sin(Math.PI*Math.min(1,Math.max(0,(progress-.55)/.4))):0;
+  face(x+.137,fy+.039,.31+opening*.035,.346,.024,'#adc4b5',.008);
+  dot(x+.595,fy+.034,1.06,.011+Math.max(0,pulse)*.004,.011,active?'#fff1a5':'#728f77');
 }
 
 export function drawCounterDesign(b,o){
@@ -67,6 +146,7 @@ export function drawCounterDesign(b,o){
 
 export function drawPracticeObject(b,renderer,room,o,time){
   const {x,y,w,h,kind}=o,{soft,wire,dot,face,paper,c,u,project,palette:p}=b;
+  const activity=['gum-machine','snack-machine','drink-machine'].includes(kind)?amenityActivity(renderer.game,room.id,o.furnitureId):null;
   if(kind==='writing-desk'){
     for(const xx of [x+.08,x+w-.14])for(const yy of [y+.075,y+h-.13])soft(xx,yy,.055,.055,.55,'#7d7865',.035,.018);
     soft(x+.07,y+.055,.39,h-.1,.52,'#aa8a67',.08,.035);
@@ -105,6 +185,8 @@ export function drawPracticeObject(b,renderer,room,o,time){
     }
     if(b.frontFacing)for(let row=0;row<4;row++)soft(x+.058,y+h-.05,w-.116,.037,.155+row*.275,'#e5e4c8',.124+row*.275,.008);
     if(b.frontFacing)cross(b,x+w*.50,y+h-.010,1.039,.064,'#5e9a88');
+  }else if(kind==='snack-machine'||kind==='drink-machine'){
+    vendingCabinet(b,o,activity);
   }else if(kind==='gum-machine'){
     soft(x+.045,y+.045,w-.09,h-.09,.105,'#865654',.025,.11);
     soft(x+.09,y+.09,w-.18,h-.18,.455,'#bd6961',.09,.07);
@@ -116,14 +198,16 @@ export function drawPracticeObject(b,renderer,room,o,time){
     for(let row=0;row<4;row++)for(let col=0;col<5;col++){
       const dx=(col-2)*.068+(row%2)*.016,dy=.135-row*.067;
       if(Math.abs(dx)>.145&&row===3)continue;
-      renderer.ellipse(q.x+dx*u,q.y+dy*u,u*.036,u*.038,['#dcbd71','#c38486','#83bca4','#85a8c4','#b39cc0'][(row*2+col)%5]);
+      const jiggle=activity?.active?Math.sin(activity.progress*Math.PI*6+col+row)*Math.sin(activity.progress*Math.PI)*.013:0;
+      renderer.ellipse(q.x+(dx+jiggle)*u,q.y+dy*u,u*.036,u*.038,['#dcbd71','#c38486','#83bca4','#85a8c4','#b39cc0'][(row*2+col)%5]);
     }
     b.line([{x:q.x-u*.12,y:q.y-u*.11},{x:q.x-u*.14,y:q.y+u*.015}],'#ffffedbd',.022);
     soft(x+.07,y+.07,w-.14,h-.14,1.105,'#bd6961',1.075,.16);
     soft(x+.205,y+.205,.09,.09,1.145,'#e5c583',1.105,.04);
     face(x+.16,y+h-.081,.235,.18,.105,'#d3c59e',.024);
-    if(b.frontFacing){wire([[x+.205,y+h-.077,.294],[x+.295,y+h-.077,.294]],'#6a7064',.015);wire([[x+.25,y+h-.072,.265],[x+.25,y+h-.072,.315]],'#8c7660',.023);}
+    if(b.frontFacing){const a=(activity?.progress||0)*Math.PI*2;wire([[x+.205,y+h-.077,.294],[x+.295,y+h-.077,.294]],'#6a7064',.015);wire([[x+.25-Math.sin(a)*.025,y+h-.072,.29-Math.cos(a)*.025],[x+.25+Math.sin(a)*.025,y+h-.072,.29+Math.cos(a)*.025]],'#8c7660',.023);}
     face(x+.17,y+h-.080,.135,.16,.066,'#6a5e55',.019);
+    if(b.frontFacing&&activity?.active&&activity.progress>.58&&activity.progress<.95)dot(x+.25,y+h-.073,.172,.023,.025,'#e8ba60');
   }else if(kind==='newspaper-rack'){
     soft(x+.025,y+.025,w-.05,h-.05,.08,'#9b7d5a',.025,.035);
     for(const xx of [x+.055,x+w-.095])soft(xx,y+.075,.04,.05,.99,'#9b7d5a',.07,.018);

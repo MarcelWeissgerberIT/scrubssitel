@@ -150,6 +150,10 @@ test('renovating an occupied waiting room releases seats and waits for physical 
 
 test('a waiting-room renovation preserves an already called appointment in another room',()=>{
  const g=clinic(),p=g.spawnPatient('jitters'),waiting=roomOf(g,'waiting');
+ // A free clinician now calls patients while they are still walking. A real
+ // break gives this visitor a reason to reach the waiting room first.
+ until(g,()=>p.stage==='diagnosis'&&p.state==='seatTravel');
+ assert.equal(g.requestBreak(employee(g,'doctor').id),true);
  until(g,()=>p.state==='called'&&p.targetRoom!==waiting.id&&g.contains(waiting,p),150);
  const appointment=p.targetRoom,department=g.room(appointment);assert.equal(department.patientId,p.id);
  ok(g.beginRoomEdit(waiting.id));assert.equal(p.targetRoom,appointment);assert.equal(department.patientId,p.id);

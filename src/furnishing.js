@@ -1,3 +1,4 @@
+import {cancelAmenity} from './amenities.js';
 import {FURNITURE} from './objects.js';
 import {defaultFurniture,layoutStatus,validatePlacement,insidePath,workPoint,patientPoint,roomSeats,pointBlocked} from './layout.js';
 import {dispatchStaff,validateStaff} from './staff.js';
@@ -12,7 +13,7 @@ export function beginRoomEdit(g,id){
  for(const p of g.patients){
   if(g.room(p.targetRoom)?.patientId===p.id)continue;
   if(p.seatRoom===id||p.targetRoom===id||g.contains(r,p)){
-   p.path=g.contains(r,p)?g.exitPath(r,p):[];p.seatRoom=null;p.seatIndex=null;p.targetRoom=null;p.state=p.path.length?'relocating':'waiting';
+   cancelAmenity(p,g.clock);p.path=g.contains(r,p)?g.exitPath(r,p):[];p.seatRoom=null;p.seatIndex=null;p.targetRoom=null;p.state=p.path.length?'relocating':'waiting';
   }
  }
  for(const s of g.staff){

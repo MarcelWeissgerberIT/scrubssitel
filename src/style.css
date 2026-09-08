@@ -190,3 +190,6 @@ button{transition:background .15s}.guide-highlight{box-shadow:none!important}.ga
 @media(max-width:480px){.view-pan{padding:5px}.view-controls{gap:0;right:10px}.view-controls .view-pan span{font-size:9px}#game-menu .game-menu-item svg{width:25px;height:25px}}
 /* In short landscape windows the open wheel uses the full screen height. */
 @media(max-height:500px){#game-menu.is-open{position:fixed;left:50%;top:50%;bottom:auto;max-width:none;transform:translate(-50%,-50%)}#game-menu.is-open .game-menu-wheel{--wheel-size:min(420px,92vw,calc(100dvh - 20px))}.menu-shield{position:fixed;background:#315f5030}}
+
+.object-illustration:has(img){display:grid;place-items:center;font-size:0}.object-illustration img{max-width:100%;height:auto;max-height:180px;object-fit:contain}
+.waiting-summary .small-button{margin-top:5px;font-size:11px;white-space:normal}

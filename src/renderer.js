@@ -146,12 +146,13 @@ export class Renderer{
   this.ellipse(p.x,p.y+this.tw*.025,this.tw*.145,this.tw*.06,'#24463c27');
   const bounds=this.characterModel.draw(person,pose,p,this.tw),height=bounds.height,width=Math.max(this.tw*.38,bounds.width);
   this.hits.push({x:p.x-width/2,y:p.y-height,w:width,h:height+4,type:staff?'staff':'patient',id:person.id,person,pose});
-  const bubble=person.cured?'heart':person.state==='called'?'call':person.patience<35?'clock':staff&&person.resting?'coffee':person.state==='seated'?(person.child?'bear':['book','dream','duck'][person.id%3]):person.state==='service'?'duck':staff&&person.state==='preparing'?'book':staff&&person.state==='working'?'care':!staff&&person.stage==='reception'?'ticket':null;
+  const bubble=person.cured?'heart':person.state==='amenityBuy'?'coin':person.state==='called'?'call':person.patience<35?'clock':staff&&person.resting?'coffee':person.state==='seated'?(person.child?'bear':['book','dream','duck'][person.id%3]):person.state==='service'?'duck':staff&&person.state==='preparing'?'book':staff&&person.state==='working'?'care':!staff&&person.stage==='reception'?'ticket':null;
   if(bubble){const size=Math.max(13,this.tw*.32),yy=p.y-height-size*.48-4;c.fillStyle='#fffff6ed';c.beginPath();c.roundRect(p.x-size*.65,yy-size,size*1.3,size*1.3,5);c.fill();c.beginPath();c.moveTo(p.x-3,yy+size*.3);c.lineTo(p.x,yy+size*.48);c.lineTo(p.x+3,yy+size*.3);c.fill();c.fillStyle=person.patience<35?'#c47455':'#4b927b';c.font=`bold ${size}px sans-serif`;c.textAlign='center';this.bubbleIcon(bubble,p.x,yy-size*.36,size*.87);c.textAlign='left';}
   if(this.selected?.id===person.id){c.strokeStyle='#e9ae4d';c.lineWidth=2;c.beginPath();c.ellipse(p.x,p.y+this.tw*.03,this.tw*.22,this.tw*.09,0,0,Math.PI*2);c.stroke();}
  }
  bubbleIcon(kind,x,y,size){const c=this.ctx;c.save();c.translate(x,y);c.scale(size,size);c.lineCap='round';c.lineJoin='round';c.lineWidth=.08;c.strokeStyle='#528476';const dot=(x,y,r,col)=>this.ellipse(x,y,r,r,col);
-  if(kind==='duck'){this.duck(0,.08,.8,0);}
+  if(kind==='coin'){dot(0,0,.35,'#d5a34c');dot(-.025,-.025,.27,'#ffe195');c.fillStyle='#936b32';c.font='bold .48px sans-serif';c.textAlign='center';c.fillText('$',0,.16);}
+  else if(kind==='duck'){this.duck(0,.08,.8,0);}
   else if(kind==='bear'){dot(-.2,-.22,.13,'#bd8d58');dot(.2,-.22,.13,'#bd8d58');dot(0,0,.30,'#dcb77b');dot(-.1,-.035,.025,'#584932');dot(.1,-.035,.025,'#584932');dot(0,.12,.12,'#f0d9a5');dot(0,.08,.035,'#66543b');}
   else if(kind==='heart'){c.fillStyle='#78ab8d';c.beginPath();c.moveTo(0,.32);c.bezierCurveTo(-.8,-.12,-.18,-.57,0,-.22);c.bezierCurveTo(.18,-.57,.8,-.12,0,.32);c.fill();}
   else if(kind==='book'||kind==='ticket'){c.fillStyle=kind==='book'?'#f5d993':'#e6c998';c.fillRect(-.36,-.26,.72,.5);c.beginPath();c.moveTo(0,-.23);c.lineTo(0,.21);c.stroke();c.lineWidth=.035;for(const yy of [-.13,-.02,.09]){c.beginPath();c.moveTo(-.28,yy);c.lineTo(-.1,yy);c.moveTo(.1,yy);c.lineTo(.28,yy);c.stroke();}}
@@ -183,7 +184,7 @@ export class Renderer{
   // The clinic starts with empty floor; furnishings belong to purchased departments.
   const entry=this.project(11.9,17.35);c.save();c.translate(entry.x,entry.y);c.rotate(-.47);c.font=`bold ${Math.max(10,this.tw*.29)}px sans-serif`;c.fillStyle='#638174';c.fillText(this.lang==='de'?'↑  WILLKOMMEN':'↑  WELCOME',-43,0);c.restore();
   for(const room of game.rooms)this.drawRoomFloor(room);
-  const people=game.patients.map(p=>{const previous=this.snapshotGame===game?this.previousPatients.get(p.id):null,r=game.room(p.targetRoom),seatRoom=game.room(p.seatRoom),lookYaw=p.state==='seated'&&seatRoom?roomSeats(seatRoom)[p.seatIndex]?.lookYaw:p.state==='service'&&r?patientPoint(r)?.lookYaw:undefined;return {...p,x:previous?mix(previous.x,p.x,alpha):p.x,y:previous?mix(previous.y,p.y,alpha):p.y,staff:false,lookYaw};});for(const staff of game.staff)if(staff.id!==this.carriedStaffId)people.push(this.staffActor(staff,game,time,alpha));
+  const people=game.patients.map(p=>{const previous=this.snapshotGame===game?this.previousPatients.get(p.id):null,r=game.room(p.targetRoom),seatRoom=game.room(p.seatRoom),lookYaw=p.state==='amenityBuy'&&seatRoom?furniturePorts(seatRoom).find(port=>port.furnitureId===p.amenity?.furnitureId&&port.kind==='use')?.lookYaw:p.state==='seated'&&seatRoom?roomSeats(seatRoom)[p.seatIndex]?.lookYaw:p.state==='service'&&r?patientPoint(r)?.lookYaw:undefined;return {...p,x:previous?mix(previous.x,p.x,alpha):p.x,y:previous?mix(previous.y,p.y,alpha):p.y,staff:false,lookYaw};});for(const staff of game.staff)if(staff.id!==this.carriedStaffId)people.push(this.staffActor(staff,game,time,alpha));
   for(const layer of sceneLayers(game,people)){
    if(layer.kind==='wall')this.drawWall(layer);
    else if(layer.kind==='object'){if(!(layer.room.id===this.editor?.roomId&&layer.object.furnitureId===this.editor?.tool?.id))this.furniture(layer.room,time,[layer.object]);}

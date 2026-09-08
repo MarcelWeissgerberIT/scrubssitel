@@ -26,7 +26,7 @@ export class CharacterAnimator{
   const desiredYaw=person.lookYaw??(moving?Math.atan2(dx,dy):a.yaw);
   if(dt){a.yaw=turnToward(a.yaw,desiredYaw,1-Math.exp(-dt*14));a.phase+=(person.movedDistance??distance)/(STRIDE*characterScale(person))*TAU;}
   const seated=isSeated(person);
-  const working=['working','preparing','service','cleaning'].includes(person.state),blend=1-Math.exp(-dt*12);
+  const working=['working','preparing','service','cleaning','amenityBuy'].includes(person.state),blend=1-Math.exp(-dt*12);
   a.walk=mix(a.walk,moving?1:0,blend);a.sit=mix(a.sit,seated?1:0,blend);a.work=mix(a.work,working?1:0,blend);a.celebrate=mix(a.celebrate,person.cured?1:0,blend);
   a.pose=seated?(a.sit<.95?'sittingDown':'seated'):a.sit>.05?'standingUp':moving?'walking':working?'working':'idle';
   a.x=person.x;a.y=person.y;a.time=time;return {...a,walking:moving};
