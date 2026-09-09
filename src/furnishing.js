@@ -4,7 +4,7 @@ import {defaultFurniture,layoutStatus,validatePlacement,insidePath,workPoint,pat
 import {dispatchStaff,validateStaff} from './staff.js';
 
 export function roomReady(r){return !!r&&r.ready===true&&!r.editing&&!r.renovating;}
-export function roomBusy(g,r){return !!r.patientId||g.patients.some(p=>g.contains(r,p)||p.seatRoom===r.id||['inside','called'].includes(p.state)&&p.targetRoom===r.id)||g.staff.some(s=>g.contains(r,s)||s.breakRoomId===r.id||s.path.length&&s.destination?.roomId===r.id);}
+export function roomBusy(g,r){return !!r.patientId||g.patients.some(p=>g.contains(r,p)||p.seatRoom===r.id||p.activity?.roomId===r.id||['inside','called'].includes(p.state)&&p.targetRoom===r.id)||g.staff.some(s=>g.contains(r,s)||s.breakRoomId===r.id||s.path.length&&s.destination?.roomId===r.id);}
 export function beginRoomEdit(g,id){
  const r=g.room(id);if(!r)return {error:'invalidRoom'};
  if(r.editing)return {room:r};
@@ -12,12 +12,13 @@ export function beginRoomEdit(g,id){
  // Finish booked visits; all other patients leave the room before moving furniture.
  for(const p of g.patients){
   if(g.room(p.targetRoom)?.patientId===p.id)continue;
-  if(p.seatRoom===id||p.targetRoom===id||g.contains(r,p)){
+  if(p.seatRoom===id||p.targetRoom===id||p.activity?.roomId===id||g.contains(r,p)){
+   if(!g.cancelNeed(p,true))continue;
    cancelAmenity(p,g.clock);p.path=g.contains(r,p)?g.exitPath(r,p):[];p.seatRoom=null;p.seatIndex=null;p.targetRoom=null;p.state=p.path.length?'relocating':'waiting';
   }
  }
  for(const s of g.staff){
-  if(s.breakRoomId===id){dispatchStaff(g,s);}
+  if(s.breakRoomId===id){dispatchStaff(g,s);if(s.trainingCourse)g.requestBreak(s.id);}
   else if(s.roomId===id&&!s.resting)g.requestBreak(s.id);
  }
  if(roomBusy(g,r))return {room:r,pending:true};

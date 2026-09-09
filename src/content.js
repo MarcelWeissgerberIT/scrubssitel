@@ -75,3 +75,19 @@ PATIENT_FACTS.occupation.push({en:'School pupil',de:'Schulkind'},{en:'Kindergart
 
 // Short consultations offset the real waiting-room journeys and door transitions.
 ROOMS.gp.time=5;ROOMS.pharmacy.time=6;
+
+ILLNESSES.push(
+ {id:'keyboard-claw',room:'pharmacy',fee:570,color:'#83baa9',name:{en:'Keyboard claw',de:'Tastaturkralle'}},
+ {id:'appointment-amnesia',room:'therapy',fee:820,color:'#b09dcc',name:{en:'Appointment amnesia',de:'Termin-Amnesie'}},
+ {id:'selfie-squint',room:'surgery',fee:1290,color:'#e2ae8f',name:{en:'Selfie squint',de:'Selfie-Schielen'}}
+);
+Object.assign(COMPLAINTS,{
+ 'keyboard-claw':{en:'“My hand only opens if I press Escape.”',de:'„Meine Hand geht nur auf, wenn ich Escape drücke.“'},
+ 'appointment-amnesia':{en:'“I remember my appointment. I just forget which me was coming.”',de:'„Den Termin weiß ich noch. Nur nicht, welches Ich kommen wollte.“'},
+ 'selfie-squint':{en:'“My good side has requested separate representation.”',de:'„Meine Schokoladenseite verlangt eine eigene Vertretung.“'}
+});
+EVENTS.push(
+ {id:'mafiaFavor',chain:true,name:{en:'A favor with extra pasta',de:'Ein Gefallen mit Extranudeln'},text:{en:'Don Fusilli remembers the loan. He wants a normal appointment, or $400 for an extremely elaborate fruit basket. His thank-you depends on the treatment.',de:'Don Fusilli erinnert sich an den Kredit. Er möchte einen regulären Termin oder 400 $ für einen äußerst aufwendigen Obstkorb. Sein Dank hängt von der Behandlung ab.'},choices:[{label:{en:'Offer a normal appointment',de:'Regulären Termin anbieten'},cost:0,effect:'mafiaCare'},{label:{en:'Send the fruit basket · $400',de:'Obstkorb schicken · 400 $'},cost:400,effect:'none'}]},
+ {id:'returningPatient',chain:true,name:{en:'Robin, again',de:'Robin, schon wieder'},text:{en:'Robin has arrived with a loyalty card from the bakery. Offer a follow-up: a successful visit earns a small donation. The regular queue still applies.',de:'Robin hat eine Bonuskarte vom Bäcker mitgebracht. Biete eine Nachkontrolle an: Bei erfolgreicher Behandlung gibt es eine kleine Spende. Die normale Warteschlange gilt weiterhin.'},choices:[{label:{en:'Book the follow-up',de:'Nachkontrolle vormerken'},cost:0,effect:'followUp'},{label:{en:'Recommend a second opinion',de:'Eine zweite Meinung empfehlen'},cost:0,effect:'refer'}]},
+ {id:'unannouncedInspection',chain:true,name:{en:'The inspector remembers',de:'Der Prüfer hat ein Gedächtnis'},text:{en:'The rubber-duck inspector will return in three months. At least 80 cleanliness and no broken machines earn $500; otherwise there is a $350 fine. Cleaning must happen before the return.',de:'Der Gummientenprüfer kommt in drei Monaten wieder. Mindestens 80 Sauberkeit und keine defekten Geräte bringen 500 $, andernfalls drohen 350 $ Bußgeld. Bis dahin muss tatsächlich gereinigt werden.'},choices:[{label:{en:'Prepare for the return visit',de:'Nachprüfung vorbereiten'},cost:0,effect:'inspectionFollowUp'}]}
+);

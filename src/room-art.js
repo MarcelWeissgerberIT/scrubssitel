@@ -1,6 +1,7 @@
 // Canvas-only furniture. Registry coordinates, seats and simulation state are read-only.
 import {PRACTICE_SIZES,drawPracticeObject,drawCounterDesign} from './practice-art.js';
 import {rotateLocal} from './objects.js';
+import {needActivity} from './patient-needs.js';
 const KINDS = new Set(['chair','sofa','stool','counter','monitor','bell','cabinet','plant','toys','books','sink','toilet','coffee','gp','pharmacy','surgery','therapy','lab','poster','clock',...Object.keys(PRACTICE_SIZES)]);
 const tint = (hex, n) => `rgb(${[1,3,5].map(i => Math.max(0, Math.min(255, parseInt(hex.slice(i,i+2),16)+n))).join(',')})`;
 const PALETTES={
@@ -16,6 +17,17 @@ const PALETTES={
 };
 // Detail coordinates use each object's own design space, never the room's origin.
 const DESIGN_SIZE={chair:[.76,.7],sofa:[1.61,.7],stool:[.5,.5],counter:[2,.8],monitor:[.5,.2],bell:[.4,.4],cabinet:[.65,.55],plant:[.4,.4],toys:[1.15,.7],books:[.7,.55],sink:[.65,.55],toilet:[.8,1],coffee:[.7,.6],poster:[.62,.035],clock:[.3,.035],...PRACTICE_SIZES};
+const doorPoint=(x,y,open,part='leaf-left')=>{const a=Math.max(0,Math.min(1,open))*Math.PI*.48,c=Math.cos(a),sn=Math.sin(a),left=part==='leaf-left',dx=x-(left?.078:.650),dy=y-.05;return left?{x:.078+dx*c+dy*sn,y:.05-dx*sn+dy*c}:{x:.078+.572*c+dx*c-dy*sn,y:.05-.572*sn+dx*sn+dy*c};};
+// A moving door leaf and its three fixed frame pieces have independent depth.
+// The visual hinge uses exactly the same polygon as the scene's occlusion box.
+export function cubiclePieces(object,open=0){
+ if(object.kind!=='cubicle-door')return [object];
+ const local=object.local||{x:0,y:0,w:object.w,h:object.h},frame=object.frame||{x:object.x,y:object.y,w:object.w,h:object.h,rotation:0};
+ return [['jamb-left',0,0,.078,.1,.02,1.18],['jamb-right',1.222,0,.078,.1,.02,1.18],['header',0,0,1.3,.1,1.148,1.18],['leaf-left',.078,.012,.572,.076,.15,1.148],['leaf-right',.650,.012,.572,.076,.15,1.148]].map(([renderPart,x,y,w,h,base,z])=>{
+  const points=[[x,y],[x+w,y],[x+w,y+h],[x,y+h]].map(([xx,yy])=>{const p=renderPart.startsWith('leaf')?doorPoint(xx,yy,open,renderPart):{x:xx,y:yy};return rotateLocal({x:local.x+p.x*local.w/1.3,y:local.y+p.y*local.h/.1},frame.w,frame.h,frame.rotation);}),xs=points.map(p=>p.x),ys=points.map(p=>p.y);
+  return {...object,renderPart,doorOpen:open,occlusion:{x:frame.x+Math.min(...xs),y:frame.y+Math.min(...ys),w:Math.max(...xs)-Math.min(...xs),h:Math.max(...ys)-Math.min(...ys),base,z}};
+ });
+}
 // Keep one selectable furniture identity, but let actors interleave with its
 // actual seat, back and arms. A whole-sofa depth cannot represent both seats.
 export function upholsteryPieces(object){
@@ -148,11 +160,14 @@ export function drawRoomObject(renderer,room,object,time=0) {
     for(const piece of pieces.sort((a,b)=>depth(a)-depth(b)))drawRoomObject(renderer,room,piece,time);
     return true;
   }
+  if(object.kind==='cubicle-door'&&!object.renderPart){for(const piece of cubiclePieces(object,object.doorOpen||0).sort((a,b)=>a.occlusion.x+a.occlusion.y-b.occlusion.x-b.occlusion.y))drawRoomObject(renderer,room,piece,time);return true;}
   ({renderer,object}=objectSpace(renderer,object));
+  if(object.kind==='cubicle-door'&&object.renderPart.startsWith('leaf')&&object.doorOpen){const previous=renderer,local=Object.create(renderer);local.project=(x,y,z=0)=>{const p=doorPoint(x,y,object.doorOpen,object.renderPart);return previous.project(p.x,p.y,z);};renderer=local;}
   const palette=PALETTES[room.type]||PALETTES.gp;
   const b=brushes(renderer,palette),{c,u,soft,wire,dot,project,panel,paper,button}=b,{x,y,w,h,z,kind}=object,game=renderer.game;
   const staff=game?.staff?.find(s=>s.id===room.staffId),ready=!!staff&&staff.roomId===room.id&&!!game.staffReady?.(staff);
-  const active=ready&&(room.type==='lab'?!!game.project:!!game.patients?.some(p=>p.id===room.patientId&&p.state==='service'));
+  const fault=game?.maintenance?.faults?.find(f=>f.roomId===room.id&&f.furnitureId===object.furnitureId);
+  const active=!fault&&ready&&(room.type==='lab'?!!game.project:!!game.patients?.some(p=>p.id===room.patientId&&p.state==='service'));
   c.save();
   try {
     if(drawPracticeObject(b,renderer,room,object,time))return true;
@@ -204,6 +219,11 @@ export function drawRoomObject(renderer,room,object,time=0) {
     }else if(kind==='sink'){
       soft(x+.035,y+.025,w-.07,h-.05,.49,palette.body,.065,.075);soft(x,y,w,h,.55,palette.light,.48,.09);dot(x+w*.51,y+h*.54,.557,w*.22,.075,palette.metal);dot(x+w*.51,y+h*.54,.559,w*.13,.041,palette.trim);
       wire([[x+w*.5,y+.07,.56],[x+w*.5,y+.07,.74],[x+w*.5,y+.20,.74],[x+w*.5,y+.20,.68]],palette.metal,.041);soft(x+.06,y+.07,.075,.09,.66,palette.accent,.55,.025);
+      const use=needActivity(game,room.id,object.furnitureId);
+      if(use?.phase==='wash'){
+        wire([[x+w*.5,y+.20,.685],[x+w*.5,y+.25,.565]],'#a8dbdce0',.022);
+        for(let i=0;i<4;i++){const phase=(use.progress*4+i/4)%1;dot(x+w*.5+Math.sin(i*3)*.055,y+.25+Math.cos(i*3)*.028,.57+phase*.018,.014+phase*.014,.010,'#edf6e7');}
+      }
     }else if(kind==='toilet'){
       soft(x+.14,y+.08,w-.28,.25,.70,'#dce3d1',.09,.065);soft(x+.10,y+.045,w-.20,.29,.74,'#f0edda',.69,.08);soft(x+.24,y+.43,w-.48,.40,.28,'#ccd7c7',.04,.095);dot(x+w/2,y+.65,.33,.28,.14,'#f1efdc');dot(x+w/2,y+.65,.339,.165,.075,'#a8c2b4');dot(x+w/2,y+.66,.341,.115,.045,'#789d92');button(x+w-.25,y+.08,.748);
       if(object.furnitureKind==='toilet-cubicle'){
@@ -234,6 +254,11 @@ export function drawRoomObject(renderer,room,object,time=0) {
       soft(x,y,w,h,.68,palette.body,.05,.09);soft(x+.04,y+.025,w-.08,h-.08,1.03,palette.trim,.65,.065);soft(x+.09,y+.065,w-.18,.17,1.08,palette.wood,1.025,.04);
       soft(x+.13,y+h-.08,w-.26,.10,.60,'#d8d5b9',.54,.025);dot(x+w*.49,y+h-.025,.70,.10,.08,'#ecdfbd');dot(x+w*.49,y+h-.025,.755,.073,.026,'#806246');for(let i=0;i<3;i++)button(x+.17+i*.14,y+h-.052,.91);wire([[x+w*.50,y+h-.05,.84],[x+w*.50,y+h-.05,.78]],'#c6cdb5',.037);
       if(game?.staff?.some(s=>s.state==='break'&&s.breakRoomId===room.id)){const cup=project(x+w*.49,y+h-.025,.82);renderer.particles(cup.x,cup.y,time,'#f5efda','~');}
+    }
+    if(fault&&['counter','gp','pharmacy','therapy','surgery','lab'].includes(kind)){
+      const pos=project(x+w*.73,y+h*.70,kind==='counter'?.59:1.14),size=u*.16;
+      c.fillStyle='#eed392';c.strokeStyle='#ae7546';c.lineWidth=Math.max(.8,u*.013);c.beginPath();c.moveTo(pos.x,pos.y-size);c.lineTo(pos.x+size*.85,pos.y+size*.60);c.lineTo(pos.x-size*.85,pos.y+size*.60);c.closePath();c.fill();c.stroke();
+      c.strokeStyle='#875e3e';c.lineWidth=Math.max(1,u*.020);c.lineCap='round';c.beginPath();c.moveTo(pos.x,pos.y-size*.50);c.lineTo(pos.x,pos.y+size*.10);c.stroke();renderer.ellipse(pos.x,pos.y+size*.34,u*.010,u*.010,'#875e3e');
     }
     return true;
   } finally {c.restore();}

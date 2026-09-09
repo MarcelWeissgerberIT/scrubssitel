@@ -10,6 +10,15 @@ export const seatedForward=person=>person.role==='receptionist'?0:person.child?.
 export function seatOffset(person,pose){const amount=seatedForward(person)*(pose?.sit??(isSeated(person)?1:0)),yaw=pose?.yaw??person.lookYaw??0;return {x:Math.sin(yaw)*amount,y:Math.cos(yaw)*amount};}
 const isSeated=person=>person.state==='seated'||person.state==='resting'&&person.hasSeat||person.role==='receptionist'&&person.hasSeat&&person.state!=='travel';
 const TAU=Math.PI*2;
+export function actionFor(person){
+ const need=person.activity;
+ if(need?.phase==='wash')return 'wash';
+ if(need?.phase==='use'&&['read','play'].includes(need.kind))return need.kind;
+ if(need&&['open','close','exitOpen','exitClose'].includes(need.phase))return 'door';
+ if(person.job?.phase==='work')return person.job.kind==='fault'?'repair':'mop';
+ if(person.state==='working'&&person.role!=='receptionist')return {gp:'examine',pharmacy:'dispense',therapy:'soothe',surgery:'operate',lab:'research'}[person.department]||'care';
+ return null;
+}
 export const mix=(a,b,t)=>a+(b-a)*t;
 export function turnToward(a,b,amount){return a+Math.atan2(Math.sin(b-a),Math.cos(b-a))*amount;}
 export function stepPose(phase){
@@ -30,9 +39,10 @@ export class CharacterAnimator{
   const desiredYaw=person.lookYaw??(moving?Math.atan2(dx,dy):a.yaw);
   if(dt){a.yaw=turnToward(a.yaw,desiredYaw,1-Math.exp(-dt*14));a.phase+=(person.movedDistance??distance)/(STRIDE*characterScale(person))*TAU;}
   const seated=isSeated(person);
-  const working=['working','preparing','service','cleaning','amenityBuy'].includes(person.state),blend=1-Math.exp(-dt*12);
+  const action=actionFor(person),working=!!action||['working','preparing','service','amenityBuy'].includes(person.state),blend=1-Math.exp(-dt*12);
   a.walk=mix(a.walk,moving?1:0,blend);a.sit=mix(a.sit,seated?1:0,blend);a.work=mix(a.work,working?1:0,blend);a.celebrate=mix(a.celebrate,person.cured?1:0,blend);
   a.pose=seated?(a.sit<.95?'sittingDown':'seated'):a.sit>.05?'standingUp':moving?'walking':working?'working':'idle';
+  a.action=action;a.actionTime=person.activity?.elapsed??person.job?.elapsed??time;
   a.x=person.x;a.y=person.y;a.time=time;return {...a,walking:moving};
  }
  prune(ids){const alive=new Set(ids);for(const id of this.actors.keys())if(!alive.has(id))this.actors.delete(id);}
@@ -54,7 +64,18 @@ export function skeleton(a,person){
   let elbow=[side*.27,swing*.45,hipHeight+.11],hand=[side*.26,swing,hipHeight-.015];
   elbow=elbow.map((v,i)=>mix(v,[side*.20,.16,hipHeight+.08][i],sit));hand=hand.map((v,i)=>mix(v,[side*.13,.28,hipHeight+.015][i],sit));
   const work=a.work*(1-a.celebrate),beat=Math.sin(t*(person.role==='receptionist'?9:4)+side)*.022;
-  const workingHand=person.role==='janitor'?[side*.09,.30+Math.sin(t*3)*.09,hipHeight+.03]:person.role==='receptionist'?[side*.12,.57,.63+beat*.4]:[side*.12,.29,hipHeight+.17+beat];
+  const action=a.action||actionFor(person),at=a.actionTime??t,pulse=Math.sin(at*6+side),reach=Math.sin(at*3+side);
+  let workingHand=person.role==='janitor'?[side*.09,.30+Math.sin(at*3)*.09,hipHeight+.03]:person.role==='receptionist'?[side*.12,.57,.63+beat*.4]:[side*.12,.29,hipHeight+.17+beat];
+  if(action==='wash')workingHand=[side*.045+pulse*.022,.48/characterScale(person)+reach*.018,.59/characterScale(person)];
+  else if(action==='read')workingHand=[side*.17,.31,hipHeight+.13+Math.sin(at*2)*.005];
+  else if(action==='play')workingHand=[side*.14,.33+reach*.06,hipHeight+.05+(pulse+1)*.045];
+  else if(action==='repair')workingHand=[side*.10,.43,hipHeight+.15+reach*.05];
+  else if(action==='door')workingHand=[side*.15,side>0?.38:.12,hipHeight+.15];
+  else if(action==='examine')workingHand=[side*.12,side>0?.47:.24,hipHeight+.25+pulse*.012];
+  else if(action==='dispense')workingHand=[side*.14,.39+reach*.05,hipHeight+.14+(side>0?(pulse+1)*.05:0)];
+  else if(action==='soothe')workingHand=[side*(.20+reach*.035),.36,hipHeight+.20+pulse*.024];
+  else if(action==='operate')workingHand=[side*.095,.45+reach*.013,hipHeight+.18+pulse*.012];
+  else if(action==='research')workingHand=[side*.11,.36,hipHeight+.18+(side>0?(pulse+1)*.045:0)];
   hand=hand.map((v,i)=>mix(v,workingHand[i],work));elbow=elbow.map((v,i)=>mix(v,[side*.23,.13,hipHeight+.17][i],work));
   if(side===1){const joy=a.celebrate;hand=hand.map((v,i)=>mix(v,[.29+Math.sin(t*8)*.04,.02,head[2]+.16][i],joy));elbow=elbow.map((v,i)=>mix(v,[.34,0,chest[2]+.12][i],joy));}
   arms.push({side,shoulder,elbow,hand});

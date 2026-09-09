@@ -7,6 +7,8 @@ import {roomObjects,FURNITURE,furniturePorts} from './objects.js';
 import {roomSeats,workPoint,patientPoint} from './layout.js';
 import {sceneLayers} from './scene.js';
 import {drawRoomObject} from './room-art.js';
+import {previewRoomChange} from './room-resize.js';
+import {patientHappiness} from './demand.js';
 const shade=(color,amount)=>{let values;if(color.startsWith('#')){const n=parseInt(color.slice(1),16);values=[n>>16,(n>>8)&255,n&255];}else values=(color.match(/[\d.]+/g)||[0,0,0]).slice(0,3).map(Number);return `rgb(${values.map(n=>Math.max(0,Math.min(255,Math.round(n+amount)))).join(',')})`;};
 export class Renderer{
  constructor(canvas,options){this.canvas=canvas;this.ctx=canvas.getContext('2d');this.options=options;this.zoom=1;this.pan={x:0,y:0};this.panMode=false;this.panCandidate=null;this.hover=null;this.drag=null;this.pointer=null;this.keyboard={x:3,y:11};this.selected=null;this.lang='en';this.buildType=null;this.game=null;this.staffVisuals=new Map();this.hits=[];this.lastTime=0;this.guideRect=null;this.expansionPreview=null;this.animator=new CharacterAnimator();this.characterModel=new CharacterModel(this.ctx);this.previousPatients=new Map();this.previousStaff=new Map();this.snapshotGame=null;this.editor=null;this.carriedStaffId=null;this.staffPickCandidate=null;this.activePointerId=null;
@@ -18,7 +20,7 @@ export class Renderer{
   canvas.addEventListener('pointercancel',e=>{if(this.activePointerId===null||e.pointerId===this.activePointerId){this.clearPointer();this.cancelStaffCarry();}});
   canvas.addEventListener('lostpointercapture',e=>{if(e.pointerId===this.activePointerId){this.clearPointer();this.cancelStaffCarry();}});
   canvas.addEventListener('wheel',e=>{e.preventDefault();if(e.shiftKey){this.pan.x-=e.deltaX||e.deltaY||0;}else if(e.deltaY)this.setZoom(this.zoom+(e.deltaY<0?.1:-.1));},{passive:false});
-  canvas.addEventListener('keydown',e=>{if(this.carriedStaffId!==null){if(e.key==='Escape'){e.preventDefault();e.stopPropagation();this.cancelStaffCarry();}else if(e.key==='Enter'){e.preventDefault();e.stopPropagation();this.dropCarriedStaff();}return;}const dirs={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};if(dirs[e.key]){e.preventDefault();const [x,y]=dirs[e.key];if(this.editor?.tool){this.editor.tool.x=Math.round((this.editor.tool.x+x*.25)*4)/4;this.editor.tool.y=Math.round((this.editor.tool.y+y*.25)*4)/4;if(FURNITURE[this.editor.tool.kind].wall){if(this.editor.tool.rotation===3)this.editor.tool.x=0;else this.editor.tool.y=0;}}else if(this.buildType){this.keyboard.x=Math.max(1,Math.min((this.game?.grid||BASE_GRID).w-2,this.keyboard.x+x));this.keyboard.y=Math.max(1,Math.min((this.game?.grid||BASE_GRID).h-2,this.keyboard.y+y));this.hover={...this.keyboard};if(this.drag)this.drag.end={...this.keyboard};}else{this.pan.x-=x*25;this.pan.y-=y*25;}}if(e.key==='Enter'){if(this.editor?.tool){e.preventDefault();this.options.onFurniturePlace?.({...this.editor.tool});}else if(this.buildType){e.preventDefault();if(this.drag){this.options.onBuild(this.buildType,this.rectangle());this.drag=null;}else this.drag={start:{...this.keyboard},end:{...this.keyboard}};}}});
+  canvas.addEventListener('keydown',e=>{if(this.roomTransformKey(e))return;if(this.carriedStaffId!==null){if(e.key==='Escape'){e.preventDefault();e.stopPropagation();this.cancelStaffCarry();}else if(e.key==='Enter'){e.preventDefault();e.stopPropagation();this.dropCarriedStaff();}return;}const dirs={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};if(dirs[e.key]){e.preventDefault();const [x,y]=dirs[e.key];if(this.editor?.tool){this.editor.tool.x=Math.round((this.editor.tool.x+x*.25)*4)/4;this.editor.tool.y=Math.round((this.editor.tool.y+y*.25)*4)/4;if(FURNITURE[this.editor.tool.kind].wall){if(this.editor.tool.rotation===3)this.editor.tool.x=0;else this.editor.tool.y=0;}}else if(this.buildType){this.keyboard.x=Math.max(1,Math.min((this.game?.grid||BASE_GRID).w-2,this.keyboard.x+x));this.keyboard.y=Math.max(1,Math.min((this.game?.grid||BASE_GRID).h-2,this.keyboard.y+y));this.hover={...this.keyboard};if(this.drag)this.drag.end={...this.keyboard};}else{this.pan.x-=x*25;this.pan.y-=y*25;}}if(e.key==='Enter'){if(this.editor?.tool){e.preventDefault();this.options.onFurniturePlace?.({...this.editor.tool});}else if(this.buildType){e.preventDefault();if(this.drag){this.options.onBuild(this.buildType,this.rectangle());this.drag=null;}else this.drag={start:{...this.keyboard},end:{...this.keyboard}};}}});
  }
  // A pending press still selects normally; only an intentional drag picks up staff.
  pointerDown(e){
@@ -29,6 +31,7 @@ export class Renderer{
   this.activePointerId=e.pointerId;this.canvas.setPointerCapture?.(e.pointerId);
   if(e.button===2||e.button===1){if(this.carriedStaffId===null)this.panning=true;return;}
   if(this.carriedStaffId!==null){this.down=this.tile(e);return;}
+  if(this.roomTransform){this.startRoomTransformDrag(e);return;}
   this.updateFurnitureHover(e);const pos=this.tile(e);
   if(this.buildType&&!this.editor)this.drag={start:pos,end:pos};
   else{this.down=this.panMode?null:pos;if(!this.editor){const hit=this.hitAt(e),threshold=e.pointerType==='touch'?9:6;if(this.panMode||!hit)this.panCandidate={x:e.clientX,y:e.clientY,pan:{...this.pan},threshold};else if(hit.type==='staff')this.staffPickCandidate={id:hit.id,x:e.clientX,y:e.clientY,threshold};}}
@@ -39,6 +42,7 @@ export class Renderer{
   if(this.panning&&this.pointer){this.pan.x+=e.clientX-this.pointer.x;this.pan.y+=e.clientY-this.pointer.y;}
   const pan=this.panCandidate;if(pan&&Math.hypot(e.clientX-pan.x,e.clientY-pan.y)>=pan.threshold){this.pan.x=pan.pan.x+e.clientX-pan.x;this.pan.y=pan.pan.y+e.clientY-pan.y;this.panCandidate=null;this.panning=true;this.down=null;this.staffPickCandidate=null;}
   this.pointer={x:e.clientX,y:e.clientY};this.hover=this.tile(e);
+  if(this.roomTransform){if(!this.panning)this.updateRoomTransform(e);return;}
   const candidate=this.staffPickCandidate;
   if(candidate&&Math.hypot(e.clientX-candidate.x,e.clientY-candidate.y)>=candidate.threshold){this.staffPickCandidate=null;this.pickUpStaff(candidate.id);}
   if(this.carriedStaffId!==null){this.canvas.style.cursor='grabbing';return;}
@@ -49,6 +53,7 @@ export class Renderer{
   this.pointer={x:e.clientX,y:e.clientY};
   if(this.carriedStaffId!==null){if(e.button!==1&&e.button!==2)this.dropCarriedStaff();this.clearPointer();return;}
   if(this.panning){this.clearPointer();this.updatePointerCursor(e);return;}
+  if(this.roomTransform){this.updateRoomTransform(e);if(this.roomTransform.start)this.commitRoomTransform();if(this.roomTransform)this.roomTransform.start=null;this.clearPointer();return;}
   if(this.editor?.tool&&this.down){this.updateFurnitureHover(e);this.options.onFurniturePlace?.({...this.editor.tool});}
   else if(this.drag){const rect=this.rectangle();this.options.onBuild(this.buildType,rect);}
   else if(this.down){const pos=this.tile(e);if(Math.abs(pos.x-this.down.x)+Math.abs(pos.y-this.down.y)<2)this.selectAt(pos,e);}
@@ -56,7 +61,7 @@ export class Renderer{
  }
  clearPointer(){const id=this.activePointerId;this.activePointerId=null;this.panning=false;this.drag=null;this.down=null;this.staffPickCandidate=null;this.panCandidate=null;this.canvas.style.cursor=this.carriedStaffId!==null?'grabbing':this.panMode?'grab':this.editor?.tool||this.buildType?'crosshair':'';if(id!==null)try{this.canvas.releasePointerCapture?.(id);}catch{}}
  setPanMode(enabled){const next=!!enabled&&!this.editor&&!this.buildType&&this.carriedStaffId===null;if(next!==this.panMode){this.panMode=next;this.clearPointer();this.options.onPanModeChange?.(next);}this.updatePointerCursor();return this.panMode;}
- updatePointerCursor(event){if(this.carriedStaffId!==null||this.panning){this.canvas.style.cursor='grabbing';return;}if(this.panMode){this.canvas.style.cursor='grab';return;}if(this.editor||this.buildType){this.canvas.style.cursor=this.editor?.tool||this.buildType?'crosshair':'';return;}const hit=event&&this.hitAt(event);this.canvas.style.cursor=hit?.type==='staff'&&this.game?.canPickUpStaff?.(hit.id)===null?'grab':'';}
+ updatePointerCursor(event){if(this.roomTransform){this.canvas.style.cursor=this.roomTransform.mode==='move'?'move':'nwse-resize';return;}if(this.carriedStaffId!==null||this.panning){this.canvas.style.cursor='grabbing';return;}if(this.panMode){this.canvas.style.cursor='grab';return;}if(this.editor||this.buildType){this.canvas.style.cursor=this.editor?.tool||this.buildType?'crosshair':'';return;}const hit=event&&this.hitAt(event);this.canvas.style.cursor=hit?.type==='staff'&&this.game?.canPickUpStaff?.(hit.id)===null?'grab':'';}
  pickUpStaff(id){
   if(this.editor||this.buildType||this.carriedStaffId!==null||!this.game)return false;
   const error=this.game.canPickUpStaff?.(id);if(error!==null){if(error)this.options.onStaffError?.(error);return false;}
@@ -88,9 +93,50 @@ export class Renderer{
  resize(){const r=this.canvas.getBoundingClientRect();this.w=r.width;this.h=r.height;const d=Math.min(devicePixelRatio||1,2);this.canvas.width=r.width*d;this.canvas.height=r.height*d;this.ctx.setTransform(d,0,0,d,0,0);}
  setZoom(z){this.zoom=Math.max(.55,Math.min(1.9,z));}
  reset(){this.zoom=1;this.pan={x:0,y:0};if(this.editor)this.centerRoom(this.editor.roomId);}
- startEditor(roomId){this.setPanMode(false);this.cancelStaffCarry();this.zoom=Math.max(this.zoom,1.75);this.editor={roomId,itemId:null,tool:null};this.buildType=null;this.drag=null;this.down=null;this.centerRoom(roomId);}
+ beginRoomTransform(roomId,mode='move'){
+  const room=this.game?.room(roomId);if(!room||!['move','resize'].includes(mode))return false;
+  const rect={x:room.x,y:room.y,w:room.w,h:room.h},preview=previewRoomChange(this.game,roomId,rect);
+  if(preview.error){this.options.onRoomTransformPreview?.(preview);return false;}
+  this.cancelStaffCarry();this.setPanMode(false);this.cancelFurnitureTool();this.clearPointer();this.buildType=null;
+  this.roomTransform={roomId,mode,rect,preview,start:null};this.canvas.focus?.();this.updatePointerCursor();this.options.onRoomTransformPreview?.(preview);return true;
+ }
+ cancelRoomTransform(){if(!this.roomTransform)return false;this.roomTransform=null;this.clearPointer();this.options.onRoomTransformPreview?.(null);return true;}
+ startRoomTransformDrag(e){
+  const t=this.roomTransform,p=this.floorPoint(e),r=t.rect;this.down=null;
+  if(p.x<r.x-.7||p.x>r.x+r.w+.7||p.y<r.y-.7||p.y>r.y+r.h+.7)return;
+  const near=(v,a,b)=>Math.min(Math.abs(v-a),Math.abs(v-b))<.7?(Math.abs(v-a)<Math.abs(v-b)?-1:1):0;
+  const edges=t.mode==='resize'?{x:near(p.x,r.x,r.x+r.w),y:near(p.y,r.y,r.y+r.h)}:{x:0,y:0};
+  if(t.mode==='resize'&&!edges.x&&!edges.y){edges.x=1;edges.y=1;}
+  t.start={point:p,rect:{...r},edges};this.updatePointerCursor();
+ }
+ updateRoomTransform(e){
+  const t=this.roomTransform;if(!t?.start)return;const p=this.floorPoint(e),{point,rect,edges}=t.start,dx=Math.round(p.x-point.x),dy=Math.round(p.y-point.y),next={...rect};
+  if(t.mode==='move'){next.x+=dx;next.y+=dy;}
+  else{if(edges.x<0){next.x+=dx;next.w-=dx;}else if(edges.x>0)next.w+=dx;if(edges.y<0){next.y+=dy;next.h-=dy;}else if(edges.y>0)next.h+=dy;}
+  this.setRoomTransformRect(next);
+ }
+ setRoomTransformRect(rect){const t=this.roomTransform;if(!t)return;const key=JSON.stringify(rect);if(key===t.key)return;t.key=key;t.rect=rect;t.preview=previewRoomChange(this.game,t.roomId,rect);this.options.onRoomTransformPreview?.(t.preview);}
+ commitRoomTransform(){const t=this.roomTransform;if(!t)return false;const preview=previewRoomChange(this.game,t.roomId,t.rect);t.preview=preview;if(preview.error){this.options.onRoomTransformPreview?.(preview);return false;}if(this.options.onRoomTransform?.(t.roomId,{...t.rect},preview)!==true)return false;this.cancelRoomTransform();return true;}
+ roomTransformKey(e){
+  const t=this.roomTransform;if(!t)return false;const dirs={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};
+  if(e.key==='Escape'){e.preventDefault();e.stopPropagation();this.cancelRoomTransform();}
+  else if(e.key==='Enter'){e.preventDefault();e.stopPropagation();this.commitRoomTransform();}
+  else if(dirs[e.key]){e.preventDefault();e.stopPropagation();const [dx,dy]=dirs[e.key],r={...t.rect};if(t.mode==='move'){r.x+=dx;r.y+=dy;}else{r.w+=dx;r.h+=dy;}this.setRoomTransformRect(r);}
+  return true;
+ }
+ drawRoomTransform(time){
+  const t=this.roomTransform,original=this.game.room(t.roomId);if(!original){this.cancelRoomTransform();return;}const {rect,preview}=t,c=this.ctx,valid=!preview?.error,color=valid?'#348766':'#b76450';
+  if(rect.w<=0||rect.h<=0)return;
+  this.tileFace(rect.x,rect.y,rect.w,rect.h,.06,valid?'#9bd9b866':'#e9a49477',color);
+  const candidate=preview?.room||{...original,...rect},probe=Object.assign(Object.create(this),{hits:[],selected:null,visualDoors:new Map(this.visualDoors),game:{...this.game,rooms:[candidate]}});
+  c.save();c.globalAlpha=.54;for(const layer of sceneLayers(probe.game,[])){if(layer.kind==='wall')probe.drawWall(layer);else probe.furniture(candidate,time,[layer.object]);}c.restore();
+  for(const [x,y] of [[rect.x,rect.y],[rect.x+rect.w,rect.y],[rect.x+rect.w,rect.y+rect.h],[rect.x,rect.y+rect.h]]){const p=this.project(x,y,.10);c.fillStyle='#fff4d7';c.strokeStyle=color;c.lineWidth=2;c.beginPath();c.roundRect(p.x-5,p.y-5,10,10,3);c.fill();c.stroke();}
+  const p=this.project(rect.x+rect.w/2,rect.y+rect.h/2,.13),price=Math.round(preview?.cost||0),text=`${rect.w} × ${rect.h} · $${price} · ${valid?(this.lang==='de'?'Loslassen / Enter':'Release / Enter'):(this.lang==='de'?'Hier nicht möglich':'Cannot place here')}`;
+  c.save();c.font='600 13px sans-serif';c.textAlign='center';const width=c.measureText(text).width+22;c.fillStyle='#fff7e9f5';c.beginPath();c.roundRect(p.x-width/2,p.y-17,width,31,7);c.fill();c.fillStyle=color;c.fillText(text,p.x,p.y+4);c.restore();
+ }
+ startEditor(roomId){this.cancelRoomTransform();this.setPanMode(false);this.cancelStaffCarry();this.zoom=Math.max(this.zoom,1.75);this.editor={roomId,itemId:null,tool:null};this.buildType=null;this.drag=null;this.down=null;this.centerRoom(roomId);}
  centerRoom(roomId){const room=this.game?.room(roomId);if(!room)return;this.metrics();const center=this.project(room.x+room.w/2,room.y+room.h/2);const compact=this.w<700,available=compact?this.w:Math.max(200,this.w-350);this.pan.x+=available/2-center.x;this.pan.y+=(compact?Math.max(150,(this.h-285)/2):this.h/2+25)-center.y;}
- setFurnitureTool(kind,item=null){if(!this.editor||!FURNITURE[kind])return;const room=this.game?.room(this.editor.roomId);this.editor.tool=item?{...item}:{kind,x:.5,y:.5,rotation:0};this.editor.itemId=item?.id??null;if(room&&!item){const f=FURNITURE[kind];this.editor.tool.x=Math.round((room.w-f.w)/2*4)/4;this.editor.tool.y=f.wall?0:Math.round((room.h-f.h)/2*4)/4;}}
+ setFurnitureTool(kind,item=null){this.cancelRoomTransform();if(!this.editor||!FURNITURE[kind])return;const room=this.game?.room(this.editor.roomId);this.editor.tool=item?{...item}:{kind,x:.5,y:.5,rotation:0};this.editor.itemId=item?.id??null;if(room&&!item){const f=FURNITURE[kind];this.editor.tool.x=Math.round((room.w-f.w)/2*4)/4;this.editor.tool.y=f.wall?0:Math.round((room.h-f.h)/2*4)/4;}}
  cancelFurnitureTool(){if(this.editor)this.editor.tool=null;}
  rotateFurnitureTool(){if(!this.editor?.tool)return;const tool=this.editor.tool,f=FURNITURE[tool.kind],room=this.game.room(this.editor.roomId);if(f.wall){const wasBack=tool.rotation===0;tool.rotation=wasBack?3:0;if(wasBack){tool.y=Math.max(0,Math.min(room.h-f.w,tool.x));tool.x=0;}else{tool.x=Math.max(0,Math.min(room.w-f.w,tool.y));tool.y=0;}}else tool.rotation=(tool.rotation+1)%4;this.options.onFurnitureToolChange?.();}
  floorPoint(e){const r=this.canvas.getBoundingClientRect(),x=e.clientX-r.left-this.ox,y=e.clientY-r.top-this.oy;return {x:x/this.tw+y/this.th,y:y/this.th-x/this.tw};}
@@ -98,6 +144,15 @@ export class Renderer{
  objectRenderer(object){if(!object.frame||!object.local)return {renderer:this,object};const frame=object.frame,project=this.project.bind(this),rotation=frame.rotation||0;const probe=Object.create(this);probe.project=(x,y,z=0)=>{const [xx,yy]=rotation===1?[frame.h-y,x]:rotation===2?[frame.w-x,frame.h-y]:rotation===3?[y,frame.w-x]:[x,y];return project(frame.x+xx,frame.y+yy,z);};return {renderer:probe,object:{...object,...object.local}};}
  drawRoomFloor(room){const col=ROOMS[room.type].color,wood=['reception','waiting','lounge','therapy'].includes(room.type),warm={reception:'#e7c995',waiting:'#efe0b7',lounge:'#dbc599',therapy:'#e3d3e8',pharmacy:'#dce8ce',surgery:'#e8dce4',lab:'#d8e6d5',gp:'#dce9dd',toilet:'#dce8e7'}[room.type];this.tileFace(room.x,room.y,room.w,room.h,.025,warm||col);for(let x=room.x;x<room.x+room.w;x++)for(let y=room.y;y<room.y+room.h;y++){this.tileFace(x,y,1,1,.03,(x+y)%2?warm||col:shade(warm||col,7),wood?'#b9a87a22':'#ffffff60');if(wood)for(let i=1;i<4;i++)this.tileFace(x+i*.25,y,.007,1,.032,'#a48b6620');else if((x+y)%3===0)this.tileFace(x+.36,y+.36,.28,.28,.032,shade(col,5));}this.tileFace(room.x+.14,room.y+.14,room.w-.28,.08,.033,'#bf986e50');}
  drawFurnitureAccess(room,valid=true,ignoreId=null){const c=this.ctx;for(const port of furniturePorts(room)){if(port.furnitureId===ignoreId)continue;const access=port.approach||port,point=this.project(access.x+.5,access.y+.5,.075),toward=port.approach?this.project(port.x+.5,port.y+.5,.075):this.project(port.x+.5+Math.sin(port.lookYaw)*.3,port.y+.5+Math.cos(port.lookYaw)*.3,.075);c.strokeStyle=valid?'#48895b':'#b56851';c.lineWidth=Math.max(1,this.tw*.024);c.beginPath();c.moveTo(point.x,point.y);c.lineTo(toward.x,toward.y);c.stroke();this.ellipse(point.x,point.y,this.tw*.115,this.tw*.058,valid?'#b7e0abdd':'#edb4a1dd');c.beginPath();c.ellipse(point.x,point.y,this.tw*.115,this.tw*.058,0,0,Math.PI*2);c.stroke();for(const side of [-1,1])this.ellipse(point.x+side*this.tw*.03,point.y,this.tw*.016,this.tw*.03,valid?'#568856':'#a76250');}}
+ drawMaintenanceFloor(){
+  const c=this.ctx;
+  for(const dirt of this.game.maintenance?.dirt||[]){
+   const cleaner=this.game.staff.find(s=>s.job?.kind==='dirt'&&s.job.id===dirt.id&&s.job.phase==='work'),amount=cleaner?Math.max(.08,1-cleaner.job.elapsed/3):1;
+   c.save();c.globalAlpha=.55*amount;
+   for(let i=0;i<5;i++){const angle=i*2.4+(dirt.id%7),p=this.project(dirt.x+.5+Math.cos(angle)*.18,dirt.y+.5+Math.sin(angle)*.18,.048);this.ellipse(p.x,p.y,this.tw*(.15+(i%2)*.06),this.tw*.050,['#a58c66','#a99d77','#b19b76'][dirt.id%3]);}c.restore();
+   if(cleaner){const p=this.project(dirt.x+.85,dirt.y+.77,.05),size=this.tw*.16;c.fillStyle='#d9b55d';c.beginPath();c.moveTo(p.x,p.y-size);c.lineTo(p.x+size*.55,p.y);c.lineTo(p.x-size*.55,p.y);c.closePath();c.fill();c.strokeStyle='#f4e4b6';c.lineWidth=Math.max(1,this.tw*.017);c.beginPath();c.moveTo(p.x-size*.25,p.y-size*.32);c.lineTo(p.x+size*.25,p.y-size*.32);c.stroke();}
+  }
+ }
  previewError(room,tool){const key=JSON.stringify([room.furniture,tool]);if(this.previewCheck?.room===room&&this.previewCheck.key===key)return this.previewCheck.error;const error=this.game.furniturePlacement(room.id,{...tool,id:tool.id||'preview'},tool.id);this.previewCheck={room,key,error};return error;}
  drawFurnitureEditor(time){const room=this.game?.room(this.editor?.roomId);if(!room)return;const c=this.ctx;this.tileFace(room.x,room.y,room.w,room.h,.045,'#fff3bb10','#d0a557');for(let x=room.x+.25;x<room.x+room.w;x+=.25)for(let y=room.y+.25;y<room.y+room.h;y+=.25){const p=this.project(x,y,.05);this.ellipse(p.x,p.y,1,1,'#6b8d6d45');}const door=this.game.door(room);this.tileFace(door.x,door.y,1,1,.065,'#f2d69066','#ba9369');const tool=this.editor.tool;this.drawFurnitureAccess(room,true,tool?.id);if(!tool)return;const f=FURNITURE[tool.kind],w=tool.rotation%2?f.h:f.w,h=tool.rotation%2?f.w:f.h,error=this.previewError(room,tool),valid=!error;this.tileFace(room.x+tool.x,room.y+tool.y,w,h,.07,valid?'#87c79b70':'#e58c8170',valid?'#397f57':'#b95648');const ghostRoom={...room,furniture:[{...tool,id:'preview'}]},probe=Object.assign(Object.create(this),{hits:[],selected:null,visualDoors:new Map(this.visualDoors)});c.save();c.globalAlpha=.65;for(const object of roomObjects(ghostRoom).filter(o=>o.furnitureId==='preview'))probe.furniture(ghostRoom,time,[object]);c.restore();this.drawFurnitureAccess(ghostRoom,valid);const point=this.project(room.x+tool.x+w/2,room.y+tool.y+h,.10);c.font='600 12px sans-serif';c.textAlign='center';c.fillStyle=valid?'#2e6748':'#a24438';c.fillText(valid?(this.lang==='de'?'Klicken oder Enter zum Platzieren':'Click or Enter to place'):(this.lang==='de'?'Hier ist kein freier, erreichbarer Platz':'This position is blocked or outside the room'),point.x,point.y+19);c.textAlign='left';}
  expansionRect(){const spec=EXPANSIONS.find(e=>e.id===this.expansionPreview);if(!spec||this.game?.expansions?.includes(spec.id))return null;const grid=this.game?.grid||BASE_GRID;return spec.width?{x:grid.w,y:0,w:spec.width,h:grid.h,spec}:{x:0,y:grid.h,w:grid.w,h:spec.height,spec};}
@@ -144,7 +199,7 @@ export class Renderer{
    const glass=[this.project(x+(xx-x)*.18,y+(yy-y)*.18,.62),this.project(x+(xx-x)*.8,y+(yy-y)*.8,.62),this.project(x+(xx-x)*.8,y+(yy-y)*.8,.92),this.project(x+(xx-x)*.18,y+(yy-y)*.18,.92)];this.poly(glass,'#d5eee3','#b1d0c5');
    const knob=this.project(x+(xx-x)*.8,y+(yy-y)*.8,.44);this.ellipse(knob.x,knob.y,this.tw*.035,this.tw*.04,'#ffe3a0');
   }else{const view=this.objectRenderer(o);drawRoomObject(view.renderer,r,view.object,time);}
-  const points=[this.project(x,y,z),this.project(x+w,y,z),this.project(x+w,y+h,0),this.project(x,y+h,0)],left=Math.min(...points.map(p=>p.x)),top=Math.min(...points.map(p=>p.y)),right=Math.max(...points.map(p=>p.x)),bottom=Math.max(...points.map(p=>p.y));
+  const hb=o.occlusion||o,points=[this.project(hb.x,hb.y,hb.z),this.project(hb.x+hb.w,hb.y,hb.z),this.project(hb.x+hb.w,hb.y+hb.h,hb.base||0),this.project(hb.x,hb.y+hb.h,hb.base||0)],left=Math.min(...points.map(p=>p.x)),top=Math.min(...points.map(p=>p.y)),right=Math.max(...points.map(p=>p.x)),bottom=Math.max(...points.map(p=>p.y));
   const padding=this.tw*.28;this.hits.push({x:left-padding,y:top-padding,w:Math.max(12,right-left)+padding*2,h:Math.max(12,bottom-top)+padding*2,type:'object',id:o.id,room:r,object:o});
   if(this.selected?.type==='object'&&this.selected.id===o.id||this.editor?.itemId&&this.editor.itemId===o.furnitureId){c.strokeStyle='#d7a449';c.lineWidth=2;c.beginPath();points.forEach((p,i)=>i?c.lineTo(p.x,p.y):c.moveTo(p.x,p.y));c.closePath();c.stroke();}
  }}
@@ -175,9 +230,9 @@ export class Renderer{
  }
  staffActor(s,game,time,alpha=1){
   const r=game.room(s.roomId),previous=this.snapshotGame===game?this.previousStaff.get(s.id):null;
-  const state=['travelWork','travelBreak'].includes(s.state)?'travel':s.state==='break'?'resting':s.state==='cleaning'?'cleaning':game.staffReady(s)&&(game.patients.some(p=>p.id===r?.patientId&&p.state==='service')||r?.type==='lab'&&game.project)?'working':game.staffReady(s)&&!game.admissionsOpen?'preparing':'idle';
-  const breakRoom=game.room(s.breakRoomId),seat=breakRoom?roomSeats(breakRoom)[s.breakSeatIndex]:null;const lookYaw=s.path.length?undefined:s.state==='break'?seat?.lookYaw??0:r?workPoint(r)?.lookYaw:undefined;
-  return {...s,x:previous?mix(previous.x,s.x,alpha):s.x,y:previous?mix(previous.y,s.y,alpha):s.y,state,lookYaw,hasSeat:s.state==='break'?s.breakSeatIndex!==null:game.staffReady(s)&&s.role==='receptionist',staff:true};
+  const state=s.job?s.job.phase==='work'?'cleaning':'travel':['travelWork','travelBreak'].includes(s.state)?'travel':s.state==='break'?'resting':s.state==='cleaning'?'cleaning':game.staffReady(s)&&(game.patients.some(p=>p.id===r?.patientId&&p.state==='service')||r?.type==='lab'&&game.project)?'working':game.staffReady(s)&&!game.admissionsOpen?'preparing':'idle';
+  const breakRoom=game.room(s.breakRoomId),seat=breakRoom?roomSeats(breakRoom)[s.breakSeatIndex]:null;const lookYaw=s.path.length?undefined:s.job?s.destination?.lookYaw??s.lookYaw??0:s.state==='break'?seat?.lookYaw??0:r?workPoint(r)?.lookYaw:undefined;
+  return {...s,x:previous?mix(previous.x,s.x,alpha):s.x,y:previous?mix(previous.y,s.y,alpha):s.y,state,lookYaw,department:r?.type,happiness:Math.max(30,100-(s.fatigue||0)*.6),hasSeat:s.state==='break'?s.breakSeatIndex!==null:game.staffReady(s)&&s.role==='receptionist',staff:true};
  }
 
  label(r){const c=this.ctx;const p=this.project(r.x+r.w/2,r.y+r.h/2,.15);const size=Math.max(10,Math.min(13,this.tw*.34));const name=tr(ROOMS[r.type].name,this.lang)+(r.renovating?(this.lang==='de'?' · wird freigemacht':' · clearing'):!this.game.roomReady(r)?(this.lang==='de'?' · Entwurf':' · draft'):ROOMS[r.type].role?' · '+r.id:'')+(r.type==='waiting'?' · '+this.game.patients.filter(p=>p.seatRoom===r.id).length+'/'+this.game.seats(r).length:'');c.font=`700 ${size}px "Trebuchet MS", sans-serif`;const width=c.measureText(name).width+20;const yy=p.y+this.tw*1.0;c.fillStyle='#fffff4ed';c.beginPath();c.roundRect(p.x-width/2,yy,width,25,7);c.fill();c.fillStyle='#304e46';c.textAlign='center';c.fillText(name,p.x,yy+17);c.textAlign='left';
@@ -185,7 +240,7 @@ export class Renderer{
   if(r.patientId){const width=36;const pp=this.project(r.x+r.w/2,r.y+r.h/2,.2);c.fillStyle='#274a4440';c.fillRect(pp.x-18,yy+29,width,4);c.fillStyle='#346f5e';c.fillRect(pp.x-18,yy+29,width*Math.min(1,r.progress/ROOMS[r.type].time),4);}
   const q=this.game.queue(r);if(q){const pp=this.project(r.x+r.w/2,r.y+r.h+.4);c.font='bold 11px sans-serif';c.fillStyle='#376156';c.fillText(`${q} ↳`,pp.x+6,pp.y+5);}
  }
- draw(game,time,alpha=1){this.initializingActors=this.game!==game;if(this.game!==game){this.setPanMode(false);this.cancelStaffCarry();this.clearPointer();this.animator.reset();this.visualDoors?.clear();this.loungeSeats?.clear();this.staffVisuals.clear();this.lastTime=time;this.drag=null;this.down=null;this.panning=false;}this.game=game;if(this.panMode&&(this.buildType||this.editor||this.carriedStaffId!==null))this.setPanMode(false);if(this.carriedStaffId!==null&&!game.staff.some(s=>s.id===this.carriedStaffId))this.cancelStaffCarry();this.layoutKey=game.rooms.map(r=>r.id).join(",");this.metrics();const c=this.ctx;this.hits=[];c.clearRect(0,0,this.w,this.h);
+ draw(game,time,alpha=1){this.initializingActors=this.game!==game;if(this.game!==game){this.cancelRoomTransform();this.setPanMode(false);this.cancelStaffCarry();this.clearPointer();this.animator.reset();this.visualDoors?.clear();this.loungeSeats?.clear();this.staffVisuals.clear();this.lastTime=time;this.drag=null;this.down=null;this.panning=false;}this.game=game;if(this.panMode&&(this.buildType||this.editor||this.carriedStaffId!==null))this.setPanMode(false);if(this.carriedStaffId!==null&&!game.staff.some(s=>s.id===this.carriedStaffId))this.cancelStaffCarry();this.layoutKey=game.rooms.map(r=>r.id).join(",");this.metrics();const c=this.ctx;this.hits=[];c.clearRect(0,0,this.w,this.h);
   // The construction surface is actual game geometry, with a navigable tile grid.
   const grid=game.grid||BASE_GRID;this.drawExpansionPreview();
   this.box(-.3,-.3,grid.w+.6,grid.h+.6,-.2,'#a4b7a1',-.65);this.tileFace(0,0,grid.w,grid.h,0,'#edf1f0');
@@ -196,7 +251,8 @@ export class Renderer{
   // The clinic starts with empty floor; furnishings belong to purchased departments.
   const entry=this.project(ENTRY.x-.1,ENTRY.y+1.35);c.save();c.translate(entry.x,entry.y);c.rotate(-.47);c.font=`bold ${Math.max(10,this.tw*.29)}px sans-serif`;c.fillStyle='#638174';c.fillText(this.lang==='de'?'↑  WILLKOMMEN':'↑  WELCOME',-43,0);c.restore();
   for(const room of game.rooms)this.drawRoomFloor(room);
-  const people=game.patients.map(p=>{const previous=this.snapshotGame===game?this.previousPatients.get(p.id):null,r=game.room(p.targetRoom),seatRoom=game.room(p.seatRoom),lookYaw=p.state==='amenityBuy'&&seatRoom?furniturePorts(seatRoom).find(port=>port.furnitureId===p.amenity?.furnitureId&&port.kind==='use')?.lookYaw:p.state==='seated'&&seatRoom?roomSeats(seatRoom)[p.seatIndex]?.lookYaw:p.state==='service'&&r?patientPoint(r)?.lookYaw:undefined;return {...p,x:previous?mix(previous.x,p.x,alpha):p.x,y:previous?mix(previous.y,p.y,alpha):p.y,staff:false,lookYaw};});for(const staff of game.staff)if(staff.id!==this.carriedStaffId)people.push(this.staffActor(staff,game,time,alpha));
+  this.drawMaintenanceFloor();
+  const people=game.patients.map(p=>{const previous=this.snapshotGame===game?this.previousPatients.get(p.id):null,r=game.room(p.targetRoom),seatRoom=game.room(p.seatRoom),needRoom=game.room(p.activity?.roomId),needPort=needRoom&&furniturePorts(needRoom).find(port=>port.furnitureId===(p.activity?.phase==='wash'?p.activity.sinkId:p.activity?.furnitureId)&&port.kind==='use'),lookYaw=p.activity&&!p.path?.length?needPort?.lookYaw:p.state==='amenityBuy'&&seatRoom?furniturePorts(seatRoom).find(port=>port.furnitureId===p.amenity?.furnitureId&&port.kind==='use')?.lookYaw:p.state==='seated'&&seatRoom?roomSeats(seatRoom)[p.seatIndex]?.lookYaw:p.state==='service'&&r?patientPoint(r)?.lookYaw:undefined;return {...p,x:previous?mix(previous.x,p.x,alpha):p.x,y:previous?mix(previous.y,p.y,alpha):p.y,staff:false,lookYaw,department:r?.type,happiness:patientHappiness(game,p)};});for(const staff of game.staff)if(staff.id!==this.carriedStaffId)people.push(this.staffActor(staff,game,time,alpha));
   for(const person of people)person.pose=this.animator.update(person,time);
   for(const layer of sceneLayers(game,people)){
    if(layer.kind==='wall')this.drawWall(layer);
@@ -209,7 +265,8 @@ export class Renderer{
   }
   for(const r of game.rooms){if(this.selected?.type==='room'&&this.selected.id===r.id)this.tileFace(r.x,r.y,r.w,r.h,.04,'#ffffff08','#fff7bc');if(r.id!==this.editor?.roomId)this.label(r);}
   this.drawExpansionLabel();
-  if(this.editor)this.drawFurnitureEditor(time);
+  if(this.editor&&!this.roomTransform)this.drawFurnitureEditor(time);
+  if(this.roomTransform)this.drawRoomTransform(time);
   if(this.guideRect&&!this.buildType){const r=this.guideRect;this.tileFace(r.x,r.y,r.w,r.h,.06,'#e6bc5b25','#daa548');const p=this.project(r.x+r.w/2,r.y+r.h/2,.12);c.font='600 13px sans-serif';c.fillStyle='#a47c30';c.textAlign='center';c.fillText(tr(ROOMS[r.type].name,this.lang)+' +',p.x,p.y);c.textAlign='left';}
   if(this.buildType){const rect=this.drag?this.rectangle():this.hover?{...this.hover,w:3,h:3}:null;if(rect){const valid=!game.placement(this.buildType,rect);this.tileFace(rect.x,rect.y,rect.w,rect.h,.08,valid?'#d5eb6a99':'#e77f7299','#ffffff');const p=this.project(rect.x+rect.w/2,rect.y+rect.h/2,.1);c.font='bold 14px sans-serif';c.fillStyle='#234740';c.textAlign='center';c.fillText(`${rect.w} × ${rect.h}`,p.x,p.y);c.textAlign='left';}}
   if(this.carriedStaffId!==null)this.drawStaffCarry(time);

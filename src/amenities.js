@@ -1,3 +1,5 @@
+import {consumePurchase} from './patient-needs.js';
+import {faultFor} from './maintenance.js';
 import {FURNITURE,furniturePorts} from './objects.js';
 import {insidePath,segmentBlocked} from './layout.js';
 
@@ -67,7 +69,7 @@ export function updateAmenity(g,p,dt){
   const back=insidePath(v.r,p,v.seat);if(back===null){abortVisit(g,p);return true;}
   if(!v.a.paid&&!p.amenityPurchased){
    v.a.paid=true;p.amenityPurchased=true;
-   g.cash+=v.spec.price-v.spec.cost;g.income+=v.spec.price;g.expenses+=v.spec.cost;
+   consumePurchase(p,v.item.kind);g.cash+=v.spec.price-v.spec.cost;g.income+=v.spec.price;g.expenses+=v.spec.cost;
    g.amenitySales??={count:0,revenue:0,costs:0};g.amenitySales.count++;g.amenitySales.revenue+=v.spec.price;g.amenitySales.costs+=v.spec.cost;
   }
   p.path=back;p.state='amenityReturn';if(!back.length)arrive(p,v);return true;

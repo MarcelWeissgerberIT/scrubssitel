@@ -1,3 +1,5 @@
+import {assignMaintenanceJob,updateMaintenanceWorker} from './maintenance.js';
+import {updateTraining,trainingEffects} from './operations.js';
 import {workPoint,roomSeats,innerDoor,pointBlocked,insidePath,ACTOR_RADIUS} from './layout.js';
 import {ROOMS} from './content.js';
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -8,7 +10,7 @@ export function initStaff(g,s,legacy=false){
  const r=g.room(s.roomId),wasResting=!!s.resting;
  Object.assign(s,{manualPlacement:!legacy,awaitingPlacement:!legacy,x:legacy&&r?workplace(r).x:12,y:legacy&&r?workplace(r).y:16,path:[],state:legacy&&r?'work':'idle',destination:null,breakRoomId:null,breakSeatIndex:null,breakPending:legacy&&wasResting,breakElapsed:0,breakCount:0,nextBreakAt:g.clock+120+s.id%9*5,patrolIndex:s.id%5});s.resting=false;
 }
-export function staffReady(g,s){const r=g.room(s?.roomId);if(!s||s.awaitingPlacement||!r||s.resting||s.state!=='work'||s.path.length||Array.isArray(r.furniture)&&(!r.ready||r.editing||r.renovating&&!r.patientId))return false;const target=workplace(r);return !!target&&Math.hypot(s.x-target.x,s.y-target.y)<.08;}
+export function staffReady(g,s){const r=g.room(s?.roomId);if(!s||s.awaitingPlacement||!r||s.trainingCourse&&!r.patientId||s.resting||s.state!=='work'||s.path.length||Array.isArray(r.furniture)&&(!r.ready||r.editing||r.renovating&&!r.patientId))return false;const target=workplace(r);return !!target&&Math.hypot(s.x-target.x,s.y-target.y)<.08;}
 function withinGrid(g,p){return Number.isFinite(p?.x)&&Number.isFinite(p?.y)&&p.x>=0&&p.x<=g.grid.w-1&&p.y>=0&&p.y<=g.grid.h-1;}
 function freeCorridor(g,p){return withinGrid(g,p)&&!g.rooms.some(r=>p.x+.5>r.x-ACTOR_RADIUS&&p.x+.5<r.x+r.w+ACTOR_RADIUS&&p.y+.5>r.y-ACTOR_RADIUS&&p.y+.5<r.y+r.h+ACTOR_RADIUS);}
 function freeDrop(g,s,r,p){return p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&(r?g.contains(r,p)&&!pointBlocked(r,p):freeCorridor(g,p))&&!g.staff.some(other=>other!==s&&Math.hypot(other.x-p.x,other.y-p.y)<.4)&&!g.patients.some(other=>Math.hypot(other.x-p.x,other.y-p.y)<.4);}
@@ -16,7 +18,7 @@ export function entrySpot(g){
  const spots=[],{w,h}=g.grid;for(let x=1;x<w-1;x++)for(let y=1;y<h-1;y++){const p={x,y};if(Math.hypot(x-12,y-16)<.7||!freeDrop(g,null,null,p)||g.rooms.some(r=>{const d=g.door(r);return d.x===x&&d.y===y;})||g.staff.some(s=>s.destination&&Math.hypot(s.destination.x-x,s.destination.y-y)<.6))continue;spots.push(p);}
  return spots.sort((a,b)=>Math.hypot(a.x-12,a.y-16)-Math.hypot(b.x-12,b.y-16)||b.y-a.y||a.x-b.x).find(p=>g.path({x:12,y:16},p)!==null)||null;
 }
-export function canPickUpStaff(g,id){const s=g.staff.find(s=>s.id===id);return !s?'staffNotFound':g.room(s.roomId)?.patientId?'staffBusy':null;}
+export function canPickUpStaff(g,id){const s=g.staff.find(s=>s.id===id);return !s?'staffNotFound':s.trainingCourse?'trainingBusy':g.room(s.roomId)?.patientId?'staffBusy':null;}
 function placementPlan(g,id,roomId,point){
  const error=canPickUpStaff(g,id);if(error)return {error};
  const s=g.staff.find(s=>s.id===id),r=roomId===null||roomId===undefined?null:g.room(roomId);
@@ -38,7 +40,7 @@ export function staffPlacement(g,id,roomId,point){return placementPlan(g,id,room
 export function placeStaff(g,id,roomId,point){
  const plan=placementPlan(g,id,roomId,point);if(plan.error)return {error:plan.error};const {s,r,drop,target,path}=plan,previous=g.room(s.roomId),first=s.awaitingPlacement;
  if(previous?.staffId===s.id)previous.staffId=null;
- Object.assign(s,{manualPlacement:true,awaitingPlacement:false,x:drop.x,y:drop.y,roomId:s.role==='janitor'?null:r.id,resting:false,breakPending:false,breakRoomId:null,breakSeatIndex:null,breakElapsed:0,path:[],destination:null,state:'idle'});
+ Object.assign(s,{manualPlacement:true,awaitingPlacement:false,x:drop.x,y:drop.y,roomId:s.role==='janitor'?null:r.id,resting:false,breakPending:false,breakRoomId:null,breakSeatIndex:null,breakElapsed:0,path:[],destination:null,state:'idle',job:null});
  if(first)s.nextBreakAt=g.clock+120+s.id%9*5;
  if(s.role==='janitor')dispatchStaff(g,s);
  else{r.staffId=s.id;s.path=path;s.destination={x:target.x,y:target.y,roomId:r.id,arrival:'work'};s.state=path.length?'travelWork':'work';}
@@ -60,15 +62,15 @@ function startBreak(g,s){
  if(!walk(g,s,choice?.p||standingSpot(g,s,g.rooms.find(r=>r.type==='lounge')||g.room(s.roomId)),choice?.r,'travelBreak','break')){s.resting=false;s.breakPending=true;s.breakRoomId=null;s.breakSeatIndex=null;}
 }
 export function dispatchStaff(g,s){if(s.awaitingPlacement)return;s.breakRoomId=null;s.breakSeatIndex=null;s.resting=false;const r=g.room(s.roomId);if(r&&g.roomReady(r)){if(!walk(g,s,workplace(r),r,'travelWork','work')){s.state='idle';s.destination=null;s.path=[];}return;}
- if(s.role==='janitor'){const points=[{x:4,y:7},{x:10,y:7},{x:19,y:8},{x:12,y:14},{x:12,y:16},...(g.grid.w>24?[{x:g.grid.w-3,y:8}]:[]),...(g.grid.h>18?[{x:12,y:g.grid.h-3}]:[])].filter(p=>!g.occupied(p.x,p.y)&&corridorRoute(g,s,p)!==null);s.patrolIndex=(s.patrolIndex+1)%Math.max(1,points.length);walk(g,s,points[s.patrolIndex]||standingSpot(g,s),null,'cleaning','cleaning');return;}
+ if(s.role==='janitor'){if(g.admissionsOpen&&assignMaintenanceJob(g,s))return;const points=[{x:4,y:7},{x:10,y:7},{x:19,y:8},{x:12,y:14},{x:12,y:16},...(g.grid.w>24?[{x:g.grid.w-3,y:8}]:[]),...(g.grid.h>18?[{x:12,y:g.grid.h-3}]:[])].filter(p=>!g.occupied(p.x,p.y)&&corridorRoute(g,s,p)!==null);s.patrolIndex=(s.patrolIndex+1)%Math.max(1,points.length);walk(g,s,points[s.patrolIndex]||standingSpot(g,s),null,'cleaning','cleaning');return;}
  if(s.manualPlacement&&!s.roomId){walk(g,s,standingSpot(g,s),null,'travelWork','idle');if(s.state==='idle'){s.awaitingPlacement=true;s.destination=null;s.breakPending=false;}return;}
  s.state='idle';s.destination=null;s.path=[];
 }
 export function requestBreak(g,id){const s=g.staff.find(s=>s.id===id);if(s&&!s.awaitingPlacement&&!s.resting){s.breakPending=true;return true;}return false;}
 export function repathStaff(g){for(const s of g.staff){const dest=s.destination;if(!dest)continue;const room=dest.roomId===null?null:g.room(dest.roomId);if(dest.roomId!==null&&!room){s.path=[];s.destination=null;s.breakRoomId=null;s.breakSeatIndex=null;s.state='idle';s.resting=false;continue;}if(!s.path.length)continue;if(!room&&(g.occupied(dest.x,dest.y)||corridorRoute(g,s,dest)===null)){if(s.state==='cleaning'||dest.arrival==='idle')dispatchStaff(g,s);else walk(g,s,standingSpot(g,s,g.room(s.roomId)),null,'travelBreak','break');}else walk(g,s,dest,room,s.state,dest.arrival);}}
 export function updateStaff(g,dt,{preparing=false}={}){
- for(const s of g.staff){const r=g.room(s.roomId),occupied=!!r?.patientId;
-  if(s.awaitingPlacement)continue;
+ for(const s of g.staff){const r=g.room(s.roomId),occupied=!!r?.patientId||!!s.job;
+  if(s.awaitingPlacement){if(!preparing)updateTraining(g,s,dt);continue;}
   if(!preparing&&!s.resting&&(s.fatigue>=86||g.clock>=s.nextBreakAt))s.breakPending=true;
   // A booked appointment, including the patient's exit, finishes before a break.
   if(preparing&&s.breakPending&&!s.resting&&!occupied&&r?.renovating){s.breakPending=false;walk(g,s,standingSpot(g,s,r),null,'travelWork','idle');}
@@ -81,9 +83,9 @@ export function updateStaff(g,dt,{preparing=false}={}){
   if(s.state==='break'){
    s.breakElapsed+=dt;const room=g.room(s.breakRoomId),seated=room?.type==='lounge'&&s.breakSeatIndex!==null;
    s.fatigue=clamp(s.fatigue-dt*(seated?2.3*(1+(room.level-1)*.3):.65),0,100);
-   if(s.breakElapsed>=12&&s.fatigue<=28){s.breakCount++;s.nextBreakAt=g.clock+150+s.id%7*5;dispatchStaff(g,s);}
-  }else if(!s.resting){const busy=occupied||s.state==='cleaning'||r?.type==='lab'&&g.project;s.fatigue=clamp(s.fatigue+dt*(busy?.32*s.fatigueRate:.035),0,100);}
-  if(s.state==='cleaning'&&!s.path.length)dispatchStaff(g,s);
+   updateTraining(g,s,dt);if(!s.trainingCourse&&s.breakElapsed>=12&&s.fatigue<=28){s.breakCount++;s.nextBreakAt=g.clock+150+s.id%7*5;dispatchStaff(g,s);}
+  }else if(!s.resting){const busy=occupied||s.state==='cleaning'||r?.type==='lab'&&g.project;s.fatigue=clamp(s.fatigue+dt*(busy?.32*s.fatigueRate*trainingEffects(s).fatigueMultiplier:.035),0,100);}
+  if(s.state==='cleaning'&&!updateMaintenanceWorker(g,s,dt)&&!s.path.length)dispatchStaff(g,s);
  }
 }
 export function migrateStaff(data){const shell={...data,room:id=>data.rooms.find(r=>r.id===id)};for(const s of data.staff)initStaff(shell,s,true);}

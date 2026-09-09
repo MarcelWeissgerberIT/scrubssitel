@@ -1,4 +1,4 @@
-import {characterScale,seatedForward,skeleton} from './animation.js';
+import {characterScale,seatedForward,skeleton,actionFor} from './animation.js';
 import {personGender,STAFF_PROFILES} from './recruitment.js';
 // Original cast modeled from the OpenArt cast reference. Live articulated
 // geometry supplies complete front, side and back views without slicing a bitmap.
@@ -72,6 +72,7 @@ const colorHex=(hex,n)=>{
 const pointOrder=(a,b)=>a.x-b.x||a.y-b.y;
 const CIRCLES=[10,20].map(count=>Array.from({length:count},(_,i)=>[Math.cos(i*Math.PI*2/count),Math.sin(i*Math.PI*2/count)]));
 const HEAD_WIDTH=1.08,HEAD_DEPTH=1.32;
+export function expressionFor(person){const value=person.happiness??person.patience??80;return person.cured?'happy':value<27?'angry':value<52?'sad':value>=75?'happy':'calm';}
 export class CharacterModel{
  constructor(ctx){this.ctx=ctx;}
  draw(person,a,origin,tileWidth,part='all'){
@@ -182,7 +183,8 @@ export class CharacterModel{
    if(look.style==='bob')commands.at(-1).depth=Math.min(commands.at(-1).depth,project([hx,hy,hz]).depth+.015);
    if(side*sideView>-.2){curve([[ear[0]+side*.016,ear[1]+.038,ear[2]-.025],[ear[0]-side*.018,ear[1]+.055,ear[2]-.012],[ear[0]-side*.012,ear[1]+.051,ear[2]+.024],[ear[0]+side*.019,ear[1]+.030,ear[2]+.025]],color(look.skin,-27),.009,.009);if(look.style==='bob')commands.at(-1).depth=Math.min(commands.at(-1).depth,project([hx,hy,hz]).depth+.016);}
   }
-  const blinkPhase=(a.time+(portraitSeed(person)%100)*.037)%4.8,blink=!a.portrait&&blinkPhase>0&&blinkPhase<.10;
+  const expression=a.portrait?'happy':expressionFor(person),browSlope=expression==='angry'?.021:expression==='sad'?-.019:0;
+  const blinkPhase=(a.time+(portraitSeed(person)%100)*.037)%4.8,blink=!a.portrait&&blinkPhase>0&&blinkPhase<.16;
   for(const side of [-1,1]){
    const ex=side*(look.eyeSpacing||.091)*1.17,surfaceY=.235*Math.sqrt(1-(ex/headWidth)**2-(.023/.23)**2),ey=hy+surfaceY+.005,tangent=-.235*.235*ex/(headWidth*headWidth*surfaceY);
    if(front-tangent*sideView<.09)continue;
@@ -197,7 +199,7 @@ export class CharacterModel{
      c.fillStyle='#fffaf0';c.beginPath();c.ellipse(-.004,-.016,.008,.010,0,0,Math.PI*2);c.fill();c.restore();
     }
     c.beginPath();c.moveTo(-.060,.002);c.bezierCurveTo(-.044,blink?.008:-.066,.036,blink?.008:-.067,.060,.001);c.strokeStyle=color(look.hair,-9);c.lineWidth=.007;c.lineCap='round';c.stroke();
-    c.beginPath();c.moveTo(-.044,-.063);c.bezierCurveTo(-.016,-.078,.024,-.076,.047,-.059);c.strokeStyle=look.hair;c.lineWidth=.012;c.stroke();
+    c.beginPath();c.moveTo(-.049,-.080+side*browSlope);c.bezierCurveTo(-.017,-.091+side*browSlope*.35,.024,-.090-side*browSlope*.35,.050,-.078-side*browSlope);c.strokeStyle=look.hair;c.lineWidth=expression==='angry'?.015:.012;c.stroke();
     if(look.glasses){c.beginPath();c.ellipse(0,-.001,.073,.064,0,0,Math.PI*2);c.strokeStyle='#3c514e';c.lineWidth=.010;c.stroke();}
     c.restore();
    }});
@@ -208,9 +210,10 @@ export class CharacterModel{
   // one yaw threshold. Surface-facing tests hide only the far-side features.
   if(front>-.42){
    volume([0,hy+.232,hz-.026],[[-.025,.026,.020],[0,.042,.051],[.030,.024,.029]],look.skin,.021);
-   const mouth=[[-.072,hy+.221,hz-.081],[-.032,hy+.248,hz-.101],[.040,hy+.242,hz-.10],[.078,hy+.216,hz-.074]].map(project);
+   const smile=expression==='happy',down=expression==='sad'||expression==='angry',edge=down?-.121:smile?-.081:-.10,middle=down?-.080:smile?-.105:-.103;
+   const mouth=[[-.072,hy+.221,hz+edge],[-.032,hy+.248,hz+middle],[.040,hy+.242,hz+middle],[.078,hy+.216,hz+edge+.003]].map(project);
    commands.push({depth:mouth.reduce((sum,p)=>sum+p.depth,0)/4+.032,draw:()=>{c.beginPath();c.moveTo(mouth[0].x,mouth[0].y);c.bezierCurveTo(mouth[1].x,mouth[1].y,mouth[2].x,mouth[2].y,mouth[3].x,mouth[3].y);c.bezierCurveTo(mouth[2].x,mouth[2].y+u*.019,mouth[1].x,mouth[1].y+u*.019,mouth[0].x,mouth[0].y);c.fillStyle='#794436';c.fill();}});
-   if(front>.22)curve([[-.052,hy+.237,hz-.088],[-.020,hy+.250,hz-.102],[.030,hy+.245,hz-.101],[.061,hy+.229,hz-.082]],'#f6e9d3',.014,.034);
+   if(front>.22&&smile)curve([[-.052,hy+.237,hz-.088],[-.020,hy+.250,hz-.102],[.030,hy+.245,hz-.101],[.061,hy+.229,hz-.082]],'#f6e9d3',.014,.034);
    if(look.glasses)line([[-.038,hy+.246,hz+.020],[0,hy+.255,hz+.027],[.038,hy+.246,hz+.020]],'#3c514e',.010,.026);
    if(look.moustache)for(const side of [-1,1])ribbon([[0,hy+.263,hz-.068],[side*.037,hy+.260,hz-.077],[side*.070,hy+.240,hz-.064]],[.013,.020,.006],look.hair,.033);
    if(look.earring)for(const side of [-1,1])sphere([side*headWidth,hy+.025,hz-.092],.018,.015,.024,'#dfb55a',.020);
@@ -302,10 +305,25 @@ export class CharacterModel{
    if(person.castId==='rosa'||look===LOOKS.rosa)line([[0,.138,pose.chest[2]], [0,.142,pose.hip[2]+.03]],'#efd797',.021);
    panel([[.116,.195,z+.026],[.174,.186,z+.026],[.174,.186,z-.05],[.116,.195,z-.05]],'#f9f3dd');line([[.129,.201,z+.024],[.161,.198,z+.024]],'#708da3',.01,.025);sphere([.143,.202,z-.008],.012,.008,.014,'#72aeb3',.025);
   }
-  if(person.role==='janitor'&&a.sit<.1){const hand=pose.arms[1].hand,end=[.11,.55+Math.sin(a.time*3)*a.work*.08,.025];bone(hand,end,.019,'#b6976a');sphere(end,.18,.09,.025,'#d3d0b6');}
-  if(a.sit>.8&&(person.role!=='receptionist'||person.state==='resting')){
-   // An open magazine is a separate prop held by both hands.
-   const z=pose.hip[2]+.03;if(person.child){sphere([0,.32,z+.04],.11,.08,.10,'#e6be79');sphere([-.06,.32,z+.12],.04,.035,.04,'#cfa765');sphere([.06,.32,z+.12],.04,.035,.04,'#cfa765');}else line([[-.17,.31,z],[0,.34,z-.025],[.17,.31,z]],'#f9eed2',.052);line([[-.15,.315,z+.008],[-.03,.33,z-.01]],'#7bb5ad',.028);line([[.03,.33,z-.01],[.15,.315,z+.008]],'#dba588',.028);
+  const action=a.action||actionFor(person),at=a.actionTime??a.time,left=pose.arms[0].hand,right=pose.arms[1].hand;
+  if(person.role==='janitor'&&a.sit<.1){
+   if(action==='repair'||person.job?.kind==='fault'){
+    const tip=[right[0],right[1]+.05,right[2]+.15];bone(right,tip,.023,'#a5b8af');line([[tip[0]-.04,tip[1],tip[2]+.04],[tip[0]-.05,tip[1],tip[2]],[tip[0],tip[1],tip[2]-.025],[tip[0]+.05,tip[1],tip[2]],[tip[0]+.04,tip[1],tip[2]+.04]],'#cbd8cc',.022);
+   }else{const end=[.11,action==='mop'?.23+Math.sin(at*3)*.08:.55,.025];bone(right,end,.019,'#b6976a');sphere(end,.18,.09,.025,'#d3d0b6');for(const dx of [-.12,-.04,.04,.12])line([[end[0]+dx,end[1]-.05,.033],[end[0]+dx,end[1]+.09,.018]],'#a3bdb3',.018);}
+  }
+  if(action==='read'&&a.work>.1){
+   const z=(left[2]+right[2])/2,y=(left[1]+right[1])/2;
+   for(const side of [-1,1]){panel([[0,y+.025,z-.02],[side*.19,y-.02,z],[side*.19,y+.20,z+.065],[0,y+.22,z+.03]],'#f3e8cb');for(let row=0;row<3;row++)line([[side*.035,y+.08+row*.032,z+.009+row*.012],[side*.15,y+.062+row*.032,z+.023+row*.012]],row?'#9faaa0':side>0?'#c98572':'#659f99',row?.007:.022);}
+  }else if(action==='play'&&a.work>.1){
+   const h=Math.sin(at*3)>0?right:left,sz=.07;panel([[h[0]-sz,h[1],h[2]],[h[0]+sz,h[1],h[2]],[h[0]+sz,h[1],h[2]+.13],[h[0]-sz,h[1],h[2]+.13]],'#e3b15a');panel([[h[0]-sz,h[1],h[2]+.13],[h[0]+sz,h[1],h[2]+.13],[h[0]+sz,h[1]+.09,h[2]+.13],[h[0]-sz,h[1]+.09,h[2]+.13]],'#f3cd82');
+  }else if(action==='wash'&&a.work>.1){
+   for(let i=0;i<5;i++){const h=i%2?left:right;sphere([h[0]+Math.sin(i*3+at*2)*.035,h[1]+.025,h[2]+.025+(i%3)*.012],.020,.018,.022,i%2?'#daede4':'#f3f4df',.022);}
+  }else if(['examine','dispense','soothe','operate','research'].includes(action)&&a.work>.1){
+   if(action==='examine'){const tip=[right[0],right[1]+.04,right[2]];sphere(tip,.055,.022,.05,'#bcd1c9',.02);curve([[-.09,.20,pose.chest[2]],[.04,.22,pose.chest[2]-.15],[right[0],right[1]-.12,right[2]-.07],tip],'#456b68',.016);}
+   else if(action==='dispense'){volume([right[0],right[1]+.015,right[2]+.065],[[-.07,.045,.035],[.035,.045,.035],[.06,.032,.024]],'#d9bd79',.012);line([[right[0]-.035,right[1]+.05,right[2]+.05],[right[0]+.035,right[1]+.05,right[2]+.05]],'#f4edd7',.035,.027);}
+   else if(action==='soothe'){const tip=[right[0],right[1]+.06,right[2]+.11];bone(right,tip,.012,'#bd9569');sphere(tip,.085,.035,.05,'#d2badc');}
+   else if(action==='operate'){const tip=[right[0],right[1]+.04,right[2]+.11];bone(right,tip,.014,'#aabeb7');sphere(tip,.06,.018,.055,'#d5e3de',.02);bone(left,[left[0],left[1]+.10,left[2]],.011,'#d2c6a7');}
+   else{bone(right,[right[0],right[1],right[2]-.12],.012,'#dce9dd');sphere([right[0],right[1],right[2]-.135],.016,.013,.023,'#bca3cb');}
   }
   commands.sort((a,b)=>a.depth-b.depth);for(const command of commands)command.draw();
   return {height:origin.y-bounds.top,width:2*Math.max(origin.x-bounds.left,bounds.right-origin.x),head:project([hx,hy,hz]),bounds};

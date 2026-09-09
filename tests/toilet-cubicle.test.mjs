@@ -6,13 +6,13 @@ import {defaultFurniture,layoutStatus,roomDoor,insidePath,pointBlocked,segmentBl
 
 const ok=result=>{assert.equal(result?.error,undefined,JSON.stringify(result));return result;};
 const actorPoint=(r,f,p)=>{const q=furniturePoint(r,f,p);return {x:q.x-.5,y:q.y-.5};};
-function assertRoute(r,from,to){const path=insidePath(r,from,to);assert.notEqual(path,null);let previous=from;for(const point of path){assert.equal(segmentBlocked(r,previous,point),false);previous=point;}assert.ok(Math.hypot(previous.x-to.x,previous.y-to.y)<1e-8);return path;}
+function assertRoute(r,from,to,options={}){const path=insidePath(r,from,to,options);assert.notEqual(path,null);let previous=from;for(const point of path){assert.equal(segmentBlocked(r,previous,point,options),false);previous=point;}assert.ok(Math.hypot(previous.x-to.x,previous.y-to.y)<1e-8);return path;}
 
 test('new WC templates fit an enclosed cubicle and sink in every supported room size',()=>{
  for(const y of [2,9])for(let w=3;w<=10;w++)for(let h=3;h<=8;h++){
   const r={id:1,type:'toilet',x:2,y,w,h,furniture:[]};r.furniture=defaultFurniture(r);
   assert.deepEqual(r.furniture.map(f=>f.kind),['toilet-cubicle','sink']);assert.deepEqual(layoutStatus(r),{ready:true,missing:[],blocked:null});
-  for(const port of furniturePorts(r)){assert.equal(pointBlocked(r,port),false);assertRoute(r,roomDoor(r),port);assertRoute(r,port,roomDoor(r));}
+  for(const port of furniturePorts(r)){assert.equal(pointBlocked(r,port),false);const target=port.approach||port;assertRoute(r,roomDoor(r),target);assertRoute(r,target,roomDoor(r));if(port.requiresDoor){assert.equal(insidePath(r,target,port),null);assertRoute(r,target,port,{doorFurnitureId:port.furnitureId});assertRoute(r,port,target,{doorFurnitureId:port.furnitureId});}}
  }
  for(const y of [2,9]){
   const g=new Game({mode:'sandbox',seed:71}),r=ok(g.addRoom('toilet',{x:2,y,w:3,h:3})).room,before=g.cash;
@@ -29,10 +29,10 @@ test('all four cubicle rotations preserve identity, block their walls and leave 
   ok(g.moveFurniture(r.id,f.id,{x:2,y:2,rotation}));assert.equal(g.cash,cash);
   const objects=roomObjects(r).filter(o=>o.furnitureId===f.id);assert.deepEqual(objects.map(o=>o.id),ids);assert.equal(objects.length,5);assert.equal(solidRects(r).length,5);
   for(const object of objects){assert.equal(object.furnitureKind,'toilet-cubicle');assert.equal(object.frame.rotation,rotation);assert.equal(findObject(g,object.id).furnitureId,f.id);assert.ok(OBJECT_INFO[object.kind][1].every(s=>s.length>20));const {x,y,w,h}=object.local,expected=furniturePoint(r,f,{x:x+w/2,y:y+h/2});assert.ok(Math.hypot(object.x+object.w/2-expected.x,object.y+object.h/2-expected.y)<1e-8);}
-  const port=furniturePorts(r)[0],expected=actorPoint(r,f,{x:.75,y:2.25});assert.equal(port.kind,'use');assert.equal(port.approach,null);assert.equal(port.solidId,null);assert.equal(port.lookYaw,Math.PI-rotation*Math.PI/2);assert.ok(Math.hypot(port.x-expected.x,port.y-expected.y)<1e-8);ports.push([port.x,port.y]);
-  assert.equal(pointBlocked(r,port),false);assertRoute(r,roomDoor(r),port);
+  const port=furniturePorts(r)[0],expected=actorPoint(r,f,{x:1.0,y:1.5}),outside=actorPoint(r,f,{x:.75,y:2.25});assert.equal(port.kind,'use');assert.deepEqual(port.approach,outside);assert.equal(port.solidId,`${f.id}:door`);assert.equal(port.requiresDoor,true);assert.equal(port.lookYaw,Math.PI-rotation*Math.PI/2);assert.ok(Math.hypot(port.x-expected.x,port.y-expected.y)<1e-8);ports.push([port.x,port.y]);
+  assert.equal(pointBlocked(r,port),false);assertRoute(r,roomDoor(r),outside);assertRoute(r,outside,port,{doorFurnitureId:f.id});assert.equal(insidePath(r,outside,port,{doorFurnitureId:'another-cubicle'}),null);
   for(const solid of FURNITURE['toilet-cubicle'].solids){const center=actorPoint(r,f,{x:solid.x+solid.w/2,y:solid.y+solid.h/2});assert.equal(pointBlocked(r,center),true,`${rotation}/${solid.part} must be solid`);}
-  const interior=actorPoint(r,f,{x:.75,y:1.55});assert.equal(pointBlocked(r,interior),false,'the free interior floor is not an invisible solid rectangle');assert.equal(insidePath(r,port,interior),null,'a closed cubicle cannot be used as a shortcut');
+  const interior=actorPoint(r,f,{x:.75,y:1.55});assert.equal(pointBlocked(r,interior),false,'the free interior floor is not an invisible solid rectangle');assert.equal(insidePath(r,outside,interior),null,'a closed cubicle cannot be used as a shortcut');
   for(const [from,to] of [[{x:-.3,y:1.5},{x:.4,y:1.5}],[{x:1.1,y:1.5},{x:1.8,y:1.5}],[{x:.75,y:-.3},{x:.75,y:.4}],[{x:.75,y:1.5},{x:.75,y:2.4}]])assert.equal(segmentBlocked(r,actorPoint(r,f,from),actorPoint(r,f,to)),true);
  }
  assert.equal(new Set(ports.map(JSON.stringify)).size,4);

@@ -1,5 +1,6 @@
 import {roomObjects,furniturePorts} from './objects.js';
-import {upholsteryPieces} from './room-art.js';
+import {upholsteryPieces,cubiclePieces} from './room-art.js';
+import {needActivity} from './patient-needs.js';
 import {seatOffset} from './animation.js';
 
 export function objectDepth(object){const b=object.occlusion||object;return b.x+b.y+(b.w+b.h)/2;}
@@ -30,8 +31,9 @@ function before(a,b){
 }
 function connect(edges,indegree,from,to){if(!edges[from].includes(to)){edges[from].push(to);indegree[to]++;}}
 function staticScene(game){
- const key=JSON.stringify(game.rooms.map(r=>[r.id,r.type,r.x,r.y,r.w,r.h,r.furniture]));let stored=cache.get(game);if(stored?.key===key)return stored;
- const layers=game.rooms.flatMap(room=>{const objects=roomObjects(room).flatMap(upholsteryPieces),ports=furniturePorts(room);return [...roomWalls(room).map(wall=>({kind:'wall',room,wall,depth:wall.x+wall.y+(wall.w+wall.h)/2})),...objects.map(object=>({kind:'object',room,object,depth:objectDepth(object),seatPorts:object.renderPart?ports.filter(port=>port.furnitureId===object.furnitureId&&port.seat):[]}))];});
+ const doorState=game.rooms.flatMap(r=>(r.furniture||[]).filter(f=>f.kind==='toilet-cubicle').map(f=>needActivity(game,r.id,f.id)?.doorOpen||0));
+ const key=JSON.stringify([doorState,game.rooms.map(r=>[r.id,r.type,r.x,r.y,r.w,r.h,r.furniture])]);let stored=cache.get(game);if(stored?.key===key)return stored;
+ const layers=game.rooms.flatMap(room=>{const objects=roomObjects(room).flatMap(o=>o.kind==='cubicle-door'?cubiclePieces(o,needActivity(game,room.id,o.furnitureId)?.doorOpen||0):upholsteryPieces(o)),ports=furniturePorts(room);return [...roomWalls(room).map(wall=>({kind:'wall',room,wall,depth:wall.x+wall.y+(wall.w+wall.h)/2})),...objects.map(object=>({kind:'object',room,object,depth:objectDepth(object),seatPorts:object.renderPart?ports.filter(port=>port.furnitureId===object.furnitureId&&port.seat):[]}))];});
  for(const layer of layers)if(['bell','monitor'].includes(layer.object?.kind)){const counter=layers.find(other=>other.room.id===layer.room.id&&other.object?.furnitureId===layer.object.furnitureId&&other.object.kind==='counter');if(counter)layer.depth=Math.max(layer.depth,counter.depth+.02);}
  layers.sort((a,b)=>a.depth-b.depth);const boxes=layers.map(bounds),edges=layers.map(()=>[]),indegree=layers.map(()=>0);
  for(let i=0;i<layers.length;i++)for(let j=i+1;j<layers.length;j++){

@@ -36,16 +36,21 @@ function cylinder(b,renderer,x,y,r,top,color,base){
 function cubiclePanel(b,o){
   const {x,y,w,h,z,kind,part}=o,{soft,wire,dot,project,c,u}=b,side=kind==='cubicle-side',door=kind==='cubicle-door';
   const top=z||1.18,metal='#9aafa7',edge='#c4d5c8',body=door?'#a9c9bb':side?'#b7cec2':'#c5d7c8';
+  if(door&&!o.renderPart?.startsWith('leaf')){
+    if(o.renderPart==='header')soft(x+.003,y+.003,w-.006,h-.006,top,edge,top-.032,.022);
+    else{const xx=x+(o.renderPart==='jamb-right'?w-.064:.008);soft(xx,y+.004,.056,h-.008,top-.012,metal,.075,.012);soft(xx+.011,y+h/2-.018,.035,.035,.15,metal,.025,.012);soft(xx-.005,y+h/2-.033,.066,.066,.04,edge,.02,.02);}
+    return;
+  }
   const length=side?h:w;
   // Small visible feet support genuinely opaque panels; the open space under
   // them is a foot gap, never translucent glass or a simulated occupancy light.
-  for(const along of [.08,length-.08]){
+  for(const along of door?[]:[.08,length-.08]){
     const xx=side?x+w/2:x+along,yy=side?y+along:y+h/2;
     soft(xx-.025,yy-.025,.05,.05,.20,metal,.025,.018);
     soft(xx-.04,yy-.04,.08,.08,.043,'#c8d3c5',.021,.025);
   }
-  soft(x+.009,y+.009,w-.018,h-.018,top-.025,body,.13,.018);
-  soft(x+.003,y+.003,w-.006,h-.006,top,edge,top-.032,.022);
+  if(door){const xx=x+(o.renderPart==='leaf-right'?.650:.078);soft(xx,y+.012,.572,h-.024,top-.05,body,.15,.018);soft(xx,y+.012,.572,h-.024,top-.032,edge,top-.057,.018);}
+  else{soft(x+.009,y+.009,w-.018,h-.018,top-.025,body,.13,.018);soft(x+.003,y+.003,w-.006,h-.006,top,edge,top-.032,.022);}
   if(side){
     for(const yy of [y+.018,y+h-.05])soft(x+.008,yy,w-.016,.032,top-.012,metal,.11,.01);
     // Hooks belong to the inside face of each side wall, and disappear behind
@@ -59,26 +64,26 @@ function cubiclePanel(b,o){
     return;
   }
   const front=b.frontFacing,fy=front?y+h+.003:y-.003;
+  const leafStart=o.renderPart==='leaf-right'?.650:.078,leafEnd=leafStart+.572;
   const surface=(xx,zz,ww,hh,color,radius=.018)=>{
+    if(door){const start=Math.max(x+leafStart,xx),end=Math.min(x+leafEnd,xx+ww);if(end<=start)return;xx=start;ww=end-start;}
     const q=project(xx,fy,zz),axis=project(xx+1,fy,zz);c.save();
     c.transform(axis.x-q.x,axis.y-q.y,0,-u,q.x,q.y);c.fillStyle=color;c.beginPath();c.roundRect(0,0,ww,hh,radius);c.fill();c.restore();
   };
   if(!door){surface(x+.08,.20,w-.16,.80,'#ccdbcf',.025);return;}
   // Jambs, door leaf and a narrow real seam make this read as a closed cubicle.
-  for(const xx of [x+.005,x+w-.055])soft(xx,y+.004,.05,h-.008,top-.012,metal,.075,.012);
   surface(x+.078,.158,w-.156,top-.225,front?'#b9d3c4':'#c4d9cb',.025);
-  wire([[x+.065,fy,.16],[x+.065,fy,top-.053]],'#819e95',.011);
-  wire([[x+w-.065,fy,.16],[x+w-.065,fy,top-.053]],'#819e95',.009);
+  wire([[x+leafStart,fy,.16],[x+leafStart,fy,top-.053]],'#819e95',.007);
   for(const zz of [.30,.86])surface(x+.046,zz,.034,.10,'#dce4d7',.006);
   const handle=x+w-.17;surface(handle-.033,.52,.065,.14,'#e5e8d8',.017);
-  wire([[handle,fy+(front?.009:-.009),.61],[handle-.087,fy+(front?.009:-.009),.61]],'#657f78',.026);
+  if(o.renderPart==='leaf-right')wire([[handle,fy+(front?.009:-.009),.61],[handle-.087,fy+(front?.009:-.009),.61]],'#657f78',.026);
   if(front){
-    surface(x+w*.5-.17,.82,.34,.20,'#f3edcf',.028);
-    const q=project(x+w*.5,fy+.004,.855),axis=project(x+w*.5+1,fy+.004,.855);
-    c.save();c.transform(axis.x-q.x,axis.y-q.y,0,u,q.x,q.y);c.fillStyle='#537b70';c.font='700 .12px sans-serif';c.textAlign='center';c.fillText('WC',0,0);c.restore();
+    surface(x+.79,.82,.27,.20,'#f3edcf',.028);
+    const q=project(x+.925,fy+.004,.855),axis=project(x+1.925,fy+.004,.855);
+    if(o.renderPart==='leaf-right'){c.save();c.transform(axis.x-q.x,axis.y-q.y,0,u,q.x,q.y);c.fillStyle='#537b70';c.font='700 .12px sans-serif';c.textAlign='center';c.fillText('WC',0,0);c.restore();}
     for(let i=0;i<4;i++)surface(x+.27,.24+i*.035,w-.54,.012,'#85a89a',.006);
   }else{
-    wire([[x+w*.55,fy,.85],[x+w*.55,fy-.055,.85],[x+w*.55,fy-.055,.91]],'#829b91',.021);
+    if(o.renderPart==='leaf-right')wire([[x+w*.65,fy,.85],[x+w*.65,fy-.055,.85],[x+w*.65,fy-.055,.91]],'#829b91',.021);
   }
 }
 

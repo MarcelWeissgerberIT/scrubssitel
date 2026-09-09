@@ -95,7 +95,7 @@ test('research pauses during the researcher’s journeys and lounge break',()=>{
  const g=clinic();const r=furnishedRoom(g,'lab',{x:17,y:7,w:4,h:3}).room,s=hireAndPlace(g,'park').staff;assert.equal(s.roomId,r.id);g.startResearch('care');assert.equal(g.project.progress,0);until(g,()=>g.staffReady(s),60,()=>assert.equal(g.project.progress,0));tick(g,10);assert.ok(g.project.progress>0);g.requestBreak(s.id);tick(g);const progress=g.project.progress;until(g,()=>s.state==='break');tick(g,20);assert.equal(g.project.progress,progress);
 });
 test('a cleaner on a break does not provide invisible cleaning',()=>{
- const g=clinic(),s=hireAndPlace(g,'otto').staff;g.requestBreak(s.id);until(g,()=>s.state==='break');g.cleanliness=70;tick(g,20);assert.ok(g.cleanliness<70);until(g,()=>s.state==='cleaning');const before=g.cleanliness;tick(g,20);assert.ok(g.cleanliness>before);
+ const g=clinic(),s=hireAndPlace(g,'otto').staff;g.requestBreak(s.id);until(g,()=>s.state==='break');g.cleanliness=70;tick(g,20);assert.ok(g.cleanliness<70);until(g,()=>s.job?.kind==='dirt'&&s.job.phase==='work');const before=g.cleanliness,id=s.job.id;until(g,()=>!g.maintenance.dirt.some(d=>d.id===id));assert.ok(g.cleanliness>before);
 });
 test('workplace and path claims in a native save must agree with physical presence',()=>{
  const g=clinic();for(const mutate of [s=>s.x=12,s=>s.path=[{x:s.x,y:s.y}],s=>{s.state='travelWork';s.path=[];}]){const data=g.snapshot();mutate(data.staff.find(s=>s.role==='doctor'));assert.throws(()=>Game.restore(data));}

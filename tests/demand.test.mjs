@@ -29,7 +29,7 @@ test('missing departments, unfinished rooms and unplaced employees cannot attrac
  const therapy=ok(g.addRoom('therapy',{x:2,y:8,w:4,h:4})).room;
  ok(g.autoFurnish(therapy.id));assert.equal(g.admitPatient('daydream'),null);ok(g.finishRoom(therapy.id));assert.equal(g.admitPatient('daydream'),null);
  const doctor=ok(g.hire('park')).staff;assert.equal(g.admitPatient('daydream'),null);ok(g.placeStaff(doctor.id,therapy.id));assert.ok(g.admitPatient('daydream'));
- assert.deepEqual(eligibleIllnesses(g).map(i=>i.room),['pharmacy','pharmacy','therapy','therapy']);
+ assert.ok(eligibleIllnesses(g).every(i=>['pharmacy','therapy'].includes(i.room)));assert.ok(eligibleIllnesses(g).some(i=>i.id==='keyboard-claw'));assert.ok(eligibleIllnesses(g).some(i=>i.id==='appointment-amnesia'));
  const receptionist=g.staff.find(s=>s.role==='receptionist');ok(g.dismiss(receptionist.id));const serial=g.patientSerial,rng=g.rng;
  assert.equal(g.admitPatient(),null);assert.equal(g.demandStatus().reason,'noReception');advance(g,10);assert.equal(g.patientSerial,serial);assert.equal(g.rng,rng);
 });
